@@ -1,1 +1,114 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Sứa Khám Phá 2026B — Đăng Nhập</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <script>
+    tailwind.config = {
+      theme: { extend: { colors: {
+        'ocean-deep':'#03045E','ocean-dark':'#023E8A','ocean-mid':'#0077B6',
+        'ocean-teal':'#0096C7','sky-blue':'#00B4D8','foam-blue':'#ADE8F4',
+        'mist-blue':'#CAF0F8','coral-red':'#D62828','bright-red':'#E63946'
+      }, fontFamily: { nunito: ['Nunito','sans-serif'] } } }
+    }
+  </script>
+</head>
+<body class="font-nunito bg-ocean-gradient min-h-screen flex flex-col">
 
+  <div id="toast-container"></div>
+
+  <!-- Hero header -->
+  <div class="flex flex-col items-center pt-14 pb-6 px-6 text-center">
+    <div class="text-6xl mb-3 select-none">🪼</div>
+    <h1 class="text-3xl font-black text-white leading-tight">Sứa Khám Phá</h1>
+    <p class="text-sky-blue font-bold text-lg mt-1">SAT The Explorer 2026B</p>
+    <p class="text-foam-blue text-sm mt-1">9 tháng 7, 2026 &middot; 17:00&ndash;20:00</p>
+  </div>
+
+  <!-- Wave -->
+  <div class="wave-divider">
+    <svg viewBox="0 0 1200 48" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
+      <path d="M0,24 C300,48 900,0 1200,24 L1200,48 L0,48 Z" fill="#CAF0F8"/>
+    </svg>
+  </div>
+
+  <!-- Login card -->
+  <div class="flex-1 bg-wave-light flex flex-col items-center justify-start px-5 pt-8 pb-10">
+    <div class="card w-full max-w-sm p-6 fade-in">
+      <h2 class="text-ocean-dark font-black text-xl mb-1 text-center">Đăng nhập</h2>
+      <p class="text-center text-sm text-gray-500 mb-6">Nhập mã Access Code để tiếp tục hành trình</p>
+
+      <label class="label" for="access-code">Access Code</label>
+      <input id="access-code" type="text" maxlength="6" autocomplete="off"
+        autocapitalize="characters" spellcheck="false" placeholder="VD: X4K9QR"
+        class="input-field code-input mb-5">
+
+      <button id="login-btn" class="btn-primary mb-4">🌊 Dive In!</button>
+
+      <div class="text-center">
+        <span class="text-sm text-gray-500">Chưa có tài khoản? </span>
+        <a href="register.html" class="text-ocean-mid font-bold text-sm hover:underline">Đăng ký ngay &rarr;</a>
+      </div>
+    </div>
+
+    <div class="card-ocean w-full max-w-sm p-4 mt-5 fade-in text-center">
+      <p class="text-ocean-dark font-bold text-sm">📍 Phòng Đa Năng 3A</p>
+      <p class="text-ocean-dark text-xs mt-1">Mang theo điện thoại đã sạc pin đầy!</p>
+    </div>
+  </div>
+
+  <script type="module">
+    import { getMemberByCode, setSession } from './js/auth.js';
+
+    const codeInput = document.getElementById('access-code');
+    const loginBtn  = document.getElementById('login-btn');
+
+    codeInput.addEventListener('input', () => {
+      codeInput.value = codeInput.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    });
+    codeInput.addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+    loginBtn.addEventListener('click', doLogin);
+
+    async function doLogin() {
+      const code = codeInput.value.trim();
+      if (code.length < 6) { showToast('Vui lòng nhập đủ 6 ký tự!', 'error'); return; }
+      loginBtn.disabled = true;
+      loginBtn.textContent = 'Đang kiểm tra...';
+      try {
+        const member = await getMemberByCode(code);
+        if (!member) {
+          showToast('Không tìm thấy mã này. Kiểm tra lại nhé!', 'error');
+        } else {
+          setSession({ memberId: member.id, accessCode: member.accessCode, name: member.name, photoURL: member.photoURL || '' });
+          window.location.href = 'dashboard.html';
+          return;
+        }
+      } catch {
+        showToast('Lỗi kết nối. Thử lại nhé!', 'error');
+      }
+      loginBtn.disabled = false;
+      loginBtn.textContent = '🌊 Dive In!';
+    }
+
+    function showToast(msg, type='info') {
+      const c = document.getElementById('toast-container');
+      const t = document.createElement('div');
+      t.className = `toast toast-${type}`;
+      t.textContent = msg;
+      c.appendChild(t);
+      setTimeout(() => t.classList.add('show'), 10);
+      setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 300); }, 3000);
+    }
+
+    // Already logged in → skip to dashboard
+    try {
+      const s = JSON.parse(localStorage.getItem('sat_member_session') || 'null');
+      if (s && s.memberId) window.location.href = 'dashboard.html';
+    } catch {}
+  </script>
+</body>
+</html>

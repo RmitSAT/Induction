@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Find Your Fellow Sứa — Sứa Khám Phá</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <script>tailwind.config={theme:{extend:{colors:{'ocean-deep':'#03045E','ocean-dark':'#023E8A','ocean-mid':'#0077B6','ocean-teal':'#0096C7','sky-blue':'#00B4D8','foam-blue':'#ADE8F4','mist-blue':'#CAF0F8','coral-red':'#D62828'},fontFamily:{nunito:['Nunito','sans-serif']}}}}</script>
+</head>
+<body class="font-nunito bg-mist-blue">
+  <div id="toast-container"></div>
+
+  <header class="top-header">
+    <a href="dashboard.html" class="text-foam-blue font-bold text-sm">&larr; Home</a>
+    <span class="text-white font-black">🪸 Find Your Fellow</span>
+    <div class="w-14"></div>
+  </header>
+
+  <div class="page-content px-4 pb-10">
+
+    <!-- Hero -->
+    <div class="bg-ocean-gradient rounded-2xl p-5 mb-5">
+      <div class="flex items-center justify-between">
+        <div>
+          <h1 class="text-white font-black text-xl">Find Your Fellow Sứa</h1>
+          <p class="text-sky-blue text-sm mt-1">Khám phá 6/10 mảnh để nhận huy hiệu</p>
+          <div class="mt-2 inline-block bg-sky-blue text-ocean-dark font-black px-3 py-0.5 rounded-full text-xs">+30 Points khi 6/10 ✅</div>
+        </div>
+        <!-- Circular progress -->
+        <div class="relative flex items-center justify-center">
+          <svg width="72" height="72" class="circle-progress-svg">
+            <circle class="circle-bg" cx="36" cy="36" r="30"/>
+            <circle class="circle-fill" id="circle-fill" cx="36" cy="36" r="30" stroke-dasharray="188.5" stroke-dashoffset="188.5"/>
+          </svg>
+          <div class="absolute text-white font-black text-sm leading-none text-center">
+            <span id="progress-num">0</span><br>
+            <span class="text-xs text-sky-blue">/10</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="loading" class="text-center py-10"><div class="spinner mx-auto"></div></div>
+
+    <!-- Badge unlocked banner -->
+    <div id="badge-banner" class="hidden card p-4 mb-4 text-center border-2 border-sky-blue bg-mist-blue">
+      <div class="text-3xl mb-1">🪸</div>
+      <p class="font-black text-ocean-dark">Friendship Reef Badge đã mở khoá!</p>
+    </div>
+
+    <!-- Rules -->
+    <div id="rules-card" class="hidden card-ocean p-4 mb-4 text-sm text-ocean-dark">
+      <p class="font-bold mb-1">📜 Luật chơi:</p>
+      <ul class="space-y-1 text-gray-600">
+        <li>✅ Quét / nhập mã của thành viên khác để xác nhận mảnh ghép</li>
+        <li>🚫 Không quét mã của chính bạn</li>
+        <li>🔢 Mỗi người chỉ giúp bạn tối đa 2 mảnh</li>
+        <li>🎯 Đạt 6/10 mảnh → nhận huy hiệu Friendship Reef!</li>
+      </ul>
+    </div>
+
+    <!-- Tile grid -->
+    <div id="tile-grid" class="tile-grid hidden"></div>
+  </div>
+
+  <!-- Scan Modal -->
+  <div id="scan-modal" class="modal-overlay hidden">
+    <div class="modal-sheet">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="font-black text-ocean-dark text-lg">Xác Nhận Mảnh Ghép</h3>
+        <button onclick="closeModal()" class="text-gray-400 text-2xl leading-none">&times;</button>
+      </div>
+
+      <div class="bg-mist-blue rounded-xl p-4 mb-4">
+        <p class="text-xs text-gray-500 font-semibold mb-1">Câu hỏi #<span id="modal-tile-num"></span>:</p>
+        <p class="font-black text-ocean-dark text-base" id="modal-statement"></p>
+        <p class="text-xs text-sky-blue mt-2 font-bold">Tìm người trả lời TRUE cho câu này!</p>
+      </div>
+
+      <!-- Scan mode toggle -->
+      <div class="flex gap-2 mb-4">
+        <button id="btn-scan-mode" onclick="setMode('scan')" class="flex-1 py-2 rounded-xl font-bold text-sm border-2 border-ocean-mid bg-ocean-mid text-white transition-all">📷 Quét QR</button>
+        <button id="btn-manual-mode" onclick="setMode('manual')" class="flex-1 py-2 rounded-xl font-bold text-sm border-2 border-foam-blue bg-white text-ocean-dark transition-all">⌨️ Nhập mã</button>
+      </div>
+
+      <!-- QR Scanner -->
+      <div id="scanner-wrap" class="hidden mb-4">
+        <div id="qr-reader" class="rounded-xl overflow-hidden"></div>
+        <p class="text-xs text-gray-500 text-center mt-2">Đưa camera vào QR code của bạn bè</p>
+      </div>
+
+      <!-- Manual code input -->
+      <div id="manual-wrap" class="mb-4">
+        <label class="label">Nhập Access Code (6 ký tự)</label>
+        <input id="manual-code" type="text" maxlength="6" autocapitalize="characters"
+          class="input-field code-input" placeholder="X4K9QR"
+          oninput="this.value=this.value.toUpperCase().replace(/[^A-Z0-9]/g,'')">
+        <button onclick="verifyManual()" class="btn-primary mt-3">✅ Xác Nhận</button>
+      </div>
+
+      <!-- Result display -->
+      <div id="verify-result" class="hidden rounded-xl p-4 text-center mb-3">
+        <div class="text-3xl mb-1" id="result-icon"></div>
+        <p class="font-bold" id="result-msg"></p>
+        <p class="text-sm text-gray-500" id="result-sub"></p>
+      </div>
+    </div>
+  </div>
+
+  <nav class="bottom-nav">
+    <a href="dashboard.html"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l9-9 9 9M5 10v9a1 1 0 001 1h4v-5h4v5h4a1 1 0 001-1v-9"/></svg>Home</a>
+    <a href="badges.html"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"/></svg>Badges</a>
+    <a href="leaderboard.html"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>Rank</a>
+    <a href="profile.html"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>Profile</a>
+  </nav>
+
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <script type="module">
+    import { requireAuth } from './js/auth.js';
+    import { db } from './js/firebase-config.js';
+    import {
+      doc, getDoc, getDocs, collection, query, where,
+      updateDoc, setDoc, serverTimestamp, runTransaction, arrayUnion
+    } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+
+    const session = requireAuth();
+    let statements     = [];
+    let member         = null;
+    let unlockedTiles  = [];
+    let activeTileIdx  = null;
+    let scannerRunning = false;
+    let html5Scanner   = null;
+    let fellowRequired = 6;
+    let maxPerTarget   = 2;
+    const SESSION_SCANNED_KEY = 'sat_scanned_this_tile';
+
+    async function load() {
+      const [memberSnap, stmtSnap, settingsSnap] = await Promise.all([
+        getDoc(doc(db,'members',session.memberId)),
+        getDocs(collection(db,'trueFalseStatements')),
+        getDoc(doc(db,'config','settings'))
+      ]);
+
+      member    = { id: memberSnap.id, ...memberSnap.data() };
+      statements = stmtSnap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>a.order-b.order);
+      const s   = settingsSnap.exists() ? settingsSnap.data() : {};
+      fellowRequired = s.fellowTilesRequired || 6;
+      maxPerTarget   = s.maxTilesPerTarget   || 2;
+      unlockedTiles  = member.unlockedTiles  || [];
+
+      document.getElementById('loading').classList.add('hidden');
+      document.getElementById('rules-card').classList.remove('hidden');
+
+      updateProgress();
+      renderTiles();
+      document.getElementById('tile-grid').classList.remove('hidden');
+
+      if (unlockedTiles.length >= fellowRequired) {
+        document.getElementById('badge-banner').classList.remove('hidden');
+      }
+    }
+
+    function updateProgress() {
+      const n = unlockedTiles.length;
+      document.getElementById('progress-num').textContent = n;
+      const circ = document.getElementById('circle-fill');
+      const circumference = 2 * Math.PI * 30;
+      circ.style.strokeDasharray  = circumference;
+      circ.style.strokeDashoffset = circumference * (1 - n/10);
+    }
+
+    function renderTiles() {
+      if (statements.length === 0) {
+        document.getElementById('tile-grid').innerHTML = '<p class="col-span-2 text-center text-gray-500 py-8">Chưa có câu hỏi. Liên hệ BTC!</p>';
+        return;
+      }
+      document.getElementById('tile-grid').innerHTML = statements.map((s,i) => {
+        const done     = unlockedTiles.includes(i);
+        const helperName = member.tileHelpers ? member.tileHelpers[i] : null;
+        return `
+          <div class="tile-card ${done ? 'tile-unlocked' : 'tile-locked'}" onclick="${done ? '' : `openModal(${i})`}">
+            ${done
+              ? `<div class="text-2xl">✅</div>
+                 <p class="text-xs font-bold text-ocean-dark leading-tight">${s.statement}</p>
+                 ${helperName ? `<p class="text-xs text-ocean-teal">${helperName}</p>` : ''}`
+              : `<div class="text-2xl text-gray-300">🔒</div>
+                 <p class="text-xs font-bold text-gray-400">#${i+1}</p>
+                 <p class="text-xs text-gray-400">Chạm để tìm bạn</p>`
+            }
+          </div>`;
+      }).join('');
+    }
+
+    window.openModal = function(tileIdx) {
+      activeTileIdx = tileIdx;
+      const stmt = statements[tileIdx];
+      document.getElementById('modal-tile-num').textContent = tileIdx + 1;
+      document.getElementById('modal-statement').textContent = stmt ? stmt.statement : '';
+      document.getElementById('verify-result').classList.add('hidden');
+      document.getElementById('manual-code').value = '';
+      document.getElementById('scan-modal').classList.remove('hidden');
+      setMode('manual');
+    };
+
+    window.closeModal = function() {
+      document.getElementById('scan-modal').classList.add('hidden');
+      stopScanner();
+    };
+
+    window.setMode = function(mode) {
+      const isQR = mode === 'scan';
+      document.getElementById('scanner-wrap').classList.toggle('hidden', !isQR);
+      document.getElementById('manual-wrap').classList.toggle('hidden', isQR);
+      document.getElementById('btn-scan-mode').className   = `flex-1 py-2 rounded-xl font-bold text-sm border-2 ${isQR ? 'border-ocean-mid bg-ocean-mid text-white' : 'border-foam-blue bg-white text-ocean-dark'} transition-all`;
+      document.getElementById('btn-manual-mode').className = `flex-1 py-2 rounded-xl font-bold text-sm border-2 ${!isQR ? 'border-ocean-mid bg-ocean-mid text-white' : 'border-foam-blue bg-white text-ocean-dark'} transition-all`;
+      if (isQR) startScanner(); else stopScanner();
+    };
+
+    function startScanner() {
+      if (scannerRunning) return;
+      html5Scanner = new Html5Qrcode('qr-reader');
+      html5Scanner.start({ facingMode:'environment' }, { fps:10, qrbox:{width:200,height:200} },
+        code => { const c=code.trim().toUpperCase().slice(0,6); stopScanner(); verifyCode(c); },
+        () => {}
+      ).then(()=>{ scannerRunning=true; }).catch(err=>{ showToast('Không mở được camera. Dùng nhập mã thủ công.','error'); setMode('manual'); });
+    }
+
+    function stopScanner() {
+      if (html5Scanner && scannerRunning) {
+        html5Scanner.stop().catch(()=>{});
+        html5Scanner.clear().catch(()=>{});
+        scannerRunning = false;
+        html5Scanner = null;
+      }
+    }
+
+    window.verifyManual = function() {
+      const code = document.getElementById('manual-code').value.trim();
+      if (code.length !== 6) { showToast('Mã phải đủ 6 ký tự!','error'); return; }
+      verifyCode(code);
+    };
+
+    async function verifyCode(code) {
+      showVerifyResult('⏳','Đang kiểm tra...','','info');
+
+      try {
+        // 1. Find target member
+        const q = query(collection(db,'members'), where('accessCode','==',code));
+        const snap = await getDocs(q);
+        if (snap.empty) { showVerifyResult('❌','Không tìm thấy mã này!','Kiểm tra lại và thử mã khác nhé.','error'); return; }
+        const target = { id:snap.docs[0].id, ...snap.docs[0].data() };
+
+        // 2. No self-scan
+        if (target.id === session.memberId) { showVerifyResult('🚫','Không thể quét mã của chính bạn!','Hãy tìm người khác nhé.','error'); return; }
+
+        // 3. Tile already unlocked
+        if (unlockedTiles.includes(activeTileIdx)) { showVerifyResult('✅','Mảnh này đã mở rồi!','Chọn mảnh khác nhé.','success'); return; }
+
+        // 4. Check max tiles per target
+        const scanDoc = await getDoc(doc(db,'members',session.memberId,'fellowScans',target.id));
+        const tilesHelped = scanDoc.exists() ? (scanDoc.data().tilesHelped||[]) : [];
+        if (tilesHelped.length >= maxPerTarget) {
+          showVerifyResult('⚠️',`${target.name} đã giúp bạn ${maxPerTarget} mảnh!`,'Mỗi người chỉ giúp được tối đa '+maxPerTarget+' mảnh. Tìm người khác nhé.','error');
+          return;
+        }
+        if (tilesHelped.includes(activeTileIdx)) {
+          showVerifyResult('⚠️','Mảnh này đã được xác nhận bởi người này rồi!','Thử mảnh khác.','error');
+          return;
+        }
+
+        // 5. Check target's T/F answer
+        const stmtId = statements[activeTileIdx]?.id;
+        const targetAnswers = target.trueFalseAnswers || {};
+        const targetAnswer  = targetAnswers[stmtId];
+
+        if (targetAnswer !== true) {
+          showVerifyResult('❌',`${target.name} trả lời FALSE cho câu này!`,'Thử người khác trả lời TRUE nhé.','error');
+          // Log failed scan
+          await logScan(target.id, false);
+          return;
+        }
+
+        // 6. SUCCESS — unlock tile
+        const newUnlocked = [...unlockedTiles, activeTileIdx];
+        const tileHelpers = member.tileHelpers || {};
+        tileHelpers[activeTileIdx] = target.name;
+
+        await runTransaction(db, async (tx) => {
+          const memberRef = doc(db,'members',session.memberId);
+          const scanRef   = doc(db,'members',session.memberId,'fellowScans',target.id);
+          tx.update(memberRef, { unlockedTiles: arrayUnion(activeTileIdx), fellowProgress: newUnlocked.length, tileHelpers });
+          tx.set(scanRef, { tilesHelped: arrayUnion(activeTileIdx), lastScannedAt: serverTimestamp() }, { merge: true });
+        });
+
+        await logScan(target.id, true);
+        unlockedTiles = newUnlocked;
+        member.tileHelpers = tileHelpers;
+
+        showVerifyResult('🎉',`${target.name} nói TRUE! Mảnh #${activeTileIdx+1} đã mở!`,'','success');
+        updateProgress();
+        renderTiles();
+
+        // Check badge threshold
+        if (newUnlocked.length >= fellowRequired) {
+          await unlockFriendshipBadge();
+        }
+
+      } catch (err) {
+        showVerifyResult('⚠️','Lỗi kết nối','Thử lại nhé!','error');
+      }
+    }
+
+    async function unlockFriendshipBadge() {
+      try {
+        const badgeSnap = await getDoc(doc(db,'members',session.memberId,'badges','B05'));
+        if (badgeSnap.exists() && badgeSnap.data().unlocked) return;
+        const ms = await getDoc(doc(db,'members',session.memberId));
+        await updateDoc(doc(db,'members',session.memberId), { points: (ms.data().points||0)+30 });
+        await updateDoc(doc(db,'members',session.memberId,'badges','B05'), { unlocked:true, unlockedAt:serverTimestamp() });
+        document.getElementById('badge-banner').classList.remove('hidden');
+        showToast('🪸 Friendship Reef Badge đã mở khoá! +30 điểm!','success');
+        // Check Full Explorer
+        await checkFullExplorer();
+      } catch {}
+    }
+
+    async function checkFullExplorer() {
+      try {
+        const ids = ['B01','B02','B03','B04','B05','B06'];
+        const snaps = await Promise.all(ids.map(id=>getDoc(doc(db,'members',session.memberId,'badges',id))));
+        if (snaps.every(s=>s.exists()&&s.data().unlocked)) {
+          await updateDoc(doc(db,'members',session.memberId,'badges','B07'),{unlocked:true,unlockedAt:serverTimestamp()});
+          const ms = await getDoc(doc(db,'members',session.memberId));
+          await updateDoc(doc(db,'members',session.memberId),{points:(ms.data().points||0)+50});
+        }
+      } catch {}
+    }
+
+    async function logScan(targetId, result) {
+      try {
+        const { addDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+        await addDoc(collection(db,'scanLogs'), { scannerId:session.memberId, targetId, tileIndex:activeTileIdx, result, timestamp:serverTimestamp() });
+      } catch {}
+    }
+
+    function showVerifyResult(icon, msg, sub, type) {
+      const el = document.getElementById('verify-result');
+      el.className = `rounded-xl p-4 text-center mb-3 ${type==='success'?'bg-green-50 border border-green-200':type==='error'?'bg-red-50 border border-red-200':'bg-mist-blue border border-foam-blue'}`;
+      document.getElementById('result-icon').textContent = icon;
+      document.getElementById('result-msg').textContent  = msg;
+      document.getElementById('result-sub').textContent  = sub;
+      el.classList.remove('hidden');
+    }
+
+    function showToast(msg,type='info'){const c=document.getElementById('toast-container');const t=document.createElement('div');t.className=`toast toast-${type}`;t.textContent=msg;c.appendChild(t);setTimeout(()=>t.classList.add('show'),10);setTimeout(()=>{t.classList.remove('show');setTimeout(()=>t.remove(),300);},4000);}
+
+    // Close modal on overlay click
+    document.getElementById('scan-modal').addEventListener('click', e => { if(e.target===e.currentTarget) closeModal(); });
+
+    load();
+  </script>
+</body>
+</html>

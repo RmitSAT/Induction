@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Members — SAT Admin</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/style.css">
+  <script>tailwind.config={theme:{extend:{colors:{'ocean-deep':'#03045E','ocean-dark':'#023E8A','ocean-mid':'#0077B6','ocean-teal':'#0096C7','sky-blue':'#00B4D8','foam-blue':'#ADE8F4','mist-blue':'#CAF0F8','coral-red':'#D62828'},fontFamily:{nunito:['Nunito','sans-serif']}}}}</script>
+</head>
+<body class="font-nunito bg-gray-50 min-h-screen">
+  <div id="toast-container"></div>
+  <div id="page-loader" class="page-loader hidden"><div class="spinner"></div><p>Processing...</p></div>
+
+  <nav class="bg-ocean-deep text-white px-6 py-3 flex items-center justify-between">
+    <div>
+      <a href="dashboard.html" class="text-foam-blue font-bold text-sm">&larr; Dashboard</a>
+      <span class="font-black text-lg ml-4">👥 Members</span>
+    </div>
+    <button onclick="doSignOut()" class="btn-danger btn-sm">Sign Out</button>
+  </nav>
+
+  <div class="max-w-6xl mx-auto px-4 py-6">
+    <!-- Search + filters -->
+    <div class="flex flex-wrap gap-3 mb-5">
+      <input id="search" type="text" placeholder="Search by name or code..." class="input-field" style="max-width:250px" oninput="renderTable()">
+      <select id="filter-status" class="input-field" style="max-width:150px" onchange="renderTable()">
+        <option value="">All Status</option>
+        <option value="newbie">Newbie</option>
+        <option value="oldbie">Oldbie</option>
+      </select>
+      <select id="filter-sat" class="input-field" style="max-width:160px" onchange="renderTable()">
+        <option value="">All SAT Types</option>
+        <option value="spotlight">Spotlight</option>
+        <option value="flow">Flow</option>
+        <option value="care">Care</option>
+        <option value="creative">Creative</option>
+        <option value="calm">Calm</option>
+      </select>
+      <button onclick="addMemberModal()" class="btn-primary btn-sm" style="width:auto;display:inline-block">+ Add Member</button>
+    </div>
+
+    <div id="loading" class="text-center py-10"><div class="spinner mx-auto"></div></div>
+
+    <div id="table-wrap" class="hidden overflow-x-auto card">
+      <div class="p-3 flex justify-between items-center border-b border-foam-blue">
+        <span class="font-bold text-ocean-dark text-sm" id="member-count">0 members</span>
+      </div>
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th>#</th><th>Name</th><th>Code</th><th>Status</th><th>SAT Type</th>
+            <th>Checked-in</th><th>Points</th><th>Team</th><th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="member-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Edit Modal -->
+  <div id="edit-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl p-6 w-full max-w-md max-h-screen overflow-y-auto">
+      <div class="flex justify-between mb-4">
+        <h3 class="font-black text-ocean-dark text-lg" id="modal-title">Edit Member</h3>
+        <button onclick="closeModal()" class="text-gray-400 text-2xl">&times;</button>
+      </div>
+      <div class="space-y-3">
+        <div><label class="label">Name</label><input id="edit-name" class="input-field"></div>
+        <div><label class="label">Date of Birth</label><input id="edit-dob" type="date" class="input-field"></div>
+        <div><label class="label">Major</label><input id="edit-major" class="input-field"></div>
+        <div><label class="label">School</label><input id="edit-school" class="input-field"></div>
+        <div>
+          <label class="label">Status</label>
+          <select id="edit-status" class="input-field"><option value="newbie">Newbie</option><option value="oldbie">Oldbie</option></select>
+        </div>
+        <div>
+          <label class="label">SAT Type</label>
+          <select id="edit-sat" class="input-field">
+            <option value="spotlight">Spotlight</option><option value="flow">Flow</option>
+            <option value="care">Care</option><option value="creative">Creative</option><option value="calm">Calm</option>
+          </select>
+        </div>
+        <div><label class="label">Access Code (read-only)</label><input id="edit-code" class="input-field bg-gray-100" readonly></div>
+        <div class="flex gap-2">
+          <button onclick="saveMember()" class="btn-primary">💾 Save</button>
+          <button onclick="closeModal()" class="btn-secondary">Cancel</button>
+        </div>
+        <button onclick="deleteMember()" class="btn-danger w-full mt-2">🗑 Delete Member</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+  <script type="module">
+    import { auth } from '../js/firebase-config.js';
+    import { onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+    import { db } from '../js/firebase-config.js';
+    import { collection, getDocs, getDoc, doc, updateDoc, deleteDoc, addDoc, setDoc, serverTimestamp, writeBatch } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+
+    onAuthStateChanged(auth, user => { if (!user) window.location.href = 'index.html'; });
+    window.doSignOut = async () => { await signOut(auth); window.location.href = 'index.html'; };
+
+    let allMembers = [];
+    let editingId  = null;
+
+    async function load() {
+      const snap = await getDocs(collection(db,'members'));
+      allMembers = snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>a.name.localeCompare(b.name));
+      document.getElementById('loading').classList.add('hidden');
+      document.getElementById('table-wrap').classList.remove('hidden');
+      renderTable();
+    }
+
+    window.renderTable = function() {
+      const search = document.getElementById('search').value.toLowerCase();
+      const fStatus = document.getElementById('filter-status').value;
+      const fSat    = document.getElementById('filter-sat').value;
+      const filtered = allMembers.filter(m =>
+        (!search  || m.name.toLowerCase().includes(search) || (m.accessCode||'').toLowerCase().includes(search)) &&
+        (!fStatus || m.status === fStatus) &&
+        (!fSat    || m.satType === fSat)
+      );
+      document.getElementById('member-count').textContent = `${filtered.length} members`;
+      const SAT_ICONS = {spotlight:'⭐',flow:'🌊',care:'💙',creative:'🎨',calm:'🧘'};
+      document.getElementById('member-tbody').innerHTML = filtered.map((m,i) => `
+        <tr>
+          <td class="text-gray-400 text-xs">${i+1}</td>
+          <td>
+            <div class="flex items-center gap-2">
+              <div class="w-7 h-7 rounded-full overflow-hidden bg-sky-blue flex-shrink-0 flex items-center justify-center">
+                ${m.photoURL?`<img src="${m.photoURL}" class="w-full h-full object-cover">`:`<span class="text-xs font-black text-ocean-dark">${(m.name||'?').slice(0,2).toUpperCase()}</span>`}
+              </div>
+              <span class="font-semibold text-ocean-dark">${m.name}</span>
+            </div>
+          </td>
+          <td><code class="font-mono font-bold text-ocean-mid">${m.accessCode||'—'}</code></td>
+          <td><span class="chip ${m.status==='newbie'?'chip-newbie':'chip-oldbie'}">${m.status||'—'}</span></td>
+          <td>${SAT_ICONS[m.satType]||''} ${m.satType||'—'}</td>
+          <td>${m.checkedIn?'<span class="chip chip-green">✓ Yes</span>':'<span class="chip chip-red">No</span>'}</td>
+          <td class="font-bold text-ocean-mid">${m.points||0}</td>
+          <td class="text-xs text-gray-500">${m.teamId?m.teamId.slice(-4):'—'}</td>
+          <td>
+            <div class="flex gap-1">
+              <button onclick="openEdit('${m.id}')" class="btn-primary btn-sm" style="width:auto;padding:4px 10px;font-size:0.75rem">Edit</button>
+              <button onclick="viewQR('${m.accessCode}')" class="btn-secondary btn-sm" style="width:auto;padding:4px 10px;font-size:0.75rem">QR</button>
+            </div>
+          </td>
+        </tr>`).join('');
+    };
+
+    window.openEdit = function(id) {
+      editingId = id;
+      const m = allMembers.find(m=>m.id===id);
+      if (!m) return;
+      document.getElementById('modal-title').textContent   = `Edit: ${m.name}`;
+      document.getElementById('edit-name').value   = m.name || '';
+      document.getElementById('edit-dob').value    = m.dateOfBirth || '';
+      document.getElementById('edit-major').value  = m.major || '';
+      document.getElementById('edit-school').value = m.school || '';
+      document.getElementById('edit-status').value = m.status || 'newbie';
+      document.getElementById('edit-sat').value    = m.satType || 'spotlight';
+      document.getElementById('edit-code').value   = m.accessCode || '';
+      document.getElementById('edit-modal').classList.remove('hidden');
+    };
+
+    window.closeModal = function() { document.getElementById('edit-modal').classList.add('hidden'); editingId=null; };
+
+    window.saveMember = async function() {
+      if (!editingId) return;
+      document.getElementById('page-loader').classList.remove('hidden');
+      try {
+        await updateDoc(doc(db,'members',editingId), {
+          name:        document.getElementById('edit-name').value.trim(),
+          dateOfBirth: document.getElementById('edit-dob').value,
+          major:       document.getElementById('edit-major').value.trim(),
+          school:      document.getElementById('edit-school').value.trim(),
+          status:      document.getElementById('edit-status').value,
+          satType:     document.getElementById('edit-sat').value,
+        });
+        const idx = allMembers.findIndex(m=>m.id===editingId);
+        if (idx>=0) {
+          allMembers[idx] = { ...allMembers[idx], name:document.getElementById('edit-name').value.trim(), status:document.getElementById('edit-status').value, satType:document.getElementById('edit-sat').value };
+        }
+        showToast('Member updated!','success');
+        closeModal(); renderTable();
+      } catch { showToast('Error saving.','error'); }
+      document.getElementById('page-loader').classList.add('hidden');
+    };
+
+    window.deleteMember = async function() {
+      if (!editingId || !confirm('Delete this member? This cannot be undone.')) return;
+      document.getElementById('page-loader').classList.remove('hidden');
+      try {
+        await deleteDoc(doc(db,'members',editingId));
+        allMembers = allMembers.filter(m=>m.id!==editingId);
+        showToast('Member deleted','success');
+        closeModal(); renderTable();
+      } catch { showToast('Error deleting.','error'); }
+      document.getElementById('page-loader').classList.add('hidden');
+    };
+
+    window.viewQR = function(code) {
+      const win = window.open('','_blank','width=300,height=350');
+      win.document.write(`<html><body style="font-family:sans-serif;text-align:center;padding:20px;background:#CAF0F8">
+        <h3 style="color:#03045E">${code}</h3><div id="qr"></div>
+        <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"><\/script>
+        <script>new QRCode(document.getElementById('qr'),{text:'${code}',width:200,height:200,colorDark:'#03045E',colorLight:'#CAF0F8'})<\/script>
+        </body></html>`);
+    };
+
+    window.addMemberModal = function() { openEdit('__new__'); document.getElementById('modal-title').textContent='Add Member'; document.getElementById('edit-code').value='Auto-generated'; };
+
+    function showToast(msg,type='info'){const c=document.getElementById('toast-container');const t=document.createElement('div');t.className=`toast toast-${type}`;t.textContent=msg;c.appendChild(t);setTimeout(()=>t.classList.add('show'),10);setTimeout(()=>{t.classList.remove('show');setTimeout(()=>t.remove(),300);},3000);}
+
+    load();
+  </script>
+</body>
+</html>

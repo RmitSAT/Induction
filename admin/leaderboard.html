@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Leaderboard — SAT Admin</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/style.css">
+  <script>tailwind.config={theme:{extend:{colors:{'ocean-deep':'#03045E','ocean-dark':'#023E8A','ocean-mid':'#0077B6','sky-blue':'#00B4D8','foam-blue':'#ADE8F4','mist-blue':'#CAF0F8','coral-red':'#D62828'},fontFamily:{nunito:['Nunito','sans-serif']}}}}</script>
+</head>
+<body class="font-nunito bg-gray-50 min-h-screen">
+  <div id="toast-container"></div>
+  <nav class="bg-ocean-deep text-white px-6 py-3 flex items-center justify-between">
+    <div><a href="dashboard.html" class="text-foam-blue font-bold text-sm">&larr; Dashboard</a><span class="font-black text-lg ml-4">🏆 Leaderboard</span></div>
+    <button onclick="doSignOut()" class="btn-danger btn-sm">Sign Out</button>
+  </nav>
+  <div class="max-w-3xl mx-auto px-4 py-6">
+    <div id="loading" class="text-center py-6"><div class="spinner mx-auto"></div></div>
+    <div id="teams-list" class="space-y-3 hidden"></div>
+  </div>
+  <script type="module">
+    import { auth } from '../js/firebase-config.js';
+    import { onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+    import { db } from '../js/firebase-config.js';
+    import { collection, getDocs, doc, updateDoc } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+    onAuthStateChanged(auth, user => { if (!user) window.location.href = 'index.html'; });
+    window.doSignOut = async () => { await signOut(auth); window.location.href = 'index.html'; };
+
+    async function load() {
+      const snap = await getDocs(collection(db,'teams'));
+      const teams = snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.score||0)-(a.score||0));
+      document.getElementById('loading').classList.add('hidden');
+      const list = document.getElementById('teams-list');
+      list.innerHTML = teams.map((t,i)=>`
+        <div class="card p-4 flex items-center gap-4">
+          <span class="text-2xl font-black text-gray-400 w-8">#${i+1}</span>
+          <div class="flex-1">
+            <p class="font-black text-ocean-dark">${t.name}</p>
+            <p class="text-xs text-gray-400">${(t.memberIds||[]).length} members</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <button onclick="adjustScore('${t.id}',-5)" class="btn-danger btn-sm" style="width:auto;padding:4px 10px">-5</button>
+            <span class="font-black text-ocean-mid text-xl w-16 text-center">${t.score||0}</span>
+            <button onclick="adjustScore('${t.id}',5)"  class="btn-primary btn-sm" style="width:auto;padding:4px 10px">+5</button>
+          </div>
+        </div>`).join('');
+      list.classList.remove('hidden');
+    }
+
+    window.adjustScore = async function(teamId, delta) {
+      const snap = await (await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js')).getDoc(doc(db,'teams',teamId));
+      const cur = snap.data().score || 0;
+      await updateDoc(doc(db,'teams',teamId),{score:Math.max(0,cur+delta)});
+      showToast(`Score adjusted by ${delta}`, delta>0?'success':'info');
+      load();
+    };
+
+    function showToast(msg,type='info'){const c=document.getElementById('toast-container');const t=document.createElement('div');t.className=`toast toast-${type}`;t.textContent=msg;c.appendChild(t);setTimeout(()=>t.classList.add('show'),10);setTimeout(()=>{t.classList.remove('show');setTimeout(()=>t.remove(),300);},2500);}
+    load();
+  </script>
+</body>
+</html>

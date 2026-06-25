@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Badge Override — SAT Admin</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/style.css">
+  <script>tailwind.config={theme:{extend:{colors:{'ocean-deep':'#03045E','ocean-dark':'#023E8A','ocean-mid':'#0077B6','ocean-teal':'#0096C7','sky-blue':'#00B4D8','foam-blue':'#ADE8F4','mist-blue':'#CAF0F8','coral-red':'#D62828'},fontFamily:{nunito:['Nunito','sans-serif']}}}}</script>
+</head>
+<body class="font-nunito bg-gray-50 min-h-screen">
+  <div id="toast-container"></div>
+  <div id="page-loader" class="page-loader hidden"><div class="spinner"></div><p>Processing...</p></div>
+
+  <nav class="bg-ocean-deep text-white px-6 py-3 flex items-center justify-between">
+    <div><a href="dashboard.html" class="text-foam-blue font-bold text-sm">&larr; Dashboard</a><span class="font-black text-lg ml-4">🏅 Badge Override</span></div>
+    <button onclick="doSignOut()" class="btn-danger btn-sm">Sign Out</button>
+  </nav>
+
+  <div class="max-w-4xl mx-auto px-4 py-6">
+    <!-- Mass unlock section -->
+    <div class="card p-5 mb-6">
+      <h2 class="font-black text-ocean-dark mb-3">🔓 Mass Badge Unlock</h2>
+      <p class="text-sm text-gray-500 mb-4">Unlock a specific badge for ALL checked-in members at once. Used during live activities (e.g., BOL session).</p>
+      <div class="flex flex-wrap gap-3">
+        <select id="mass-badge" class="input-field" style="max-width:220px">
+          <option value="B02">B02 — Archive Pearl</option>
+          <option value="B04">B04 — BOL Compass</option>
+          <option value="B06">B06 — Current Crew</option>
+        </select>
+        <button onclick="massUnlock()" class="btn-primary btn-sm" style="width:auto;display:inline-block">🔓 Unlock for All Checked-In</button>
+      </div>
+    </div>
+
+    <!-- Individual badge override -->
+    <div class="card p-5 mb-5">
+      <h2 class="font-black text-ocean-dark mb-3">👤 Individual Override</h2>
+      <div class="flex gap-3 mb-4">
+        <input id="member-search" type="text" placeholder="Search member by name or code..." class="input-field flex-1">
+        <button onclick="searchMember()" class="btn-primary btn-sm" style="width:auto;display:inline-block">Search</button>
+      </div>
+      <div id="search-result" class="hidden">
+        <div class="border border-foam-blue rounded-xl p-4 mb-4">
+          <p class="font-bold text-ocean-dark" id="found-name">—</p>
+          <p class="text-sm text-gray-500" id="found-info">—</p>
+        </div>
+        <div class="space-y-2" id="badge-toggles"></div>
+      </div>
+    </div>
+
+    <div id="loading" class="text-center py-6"><div class="spinner mx-auto"></div></div>
+  </div>
+
+  <script type="module">
+    import { auth } from '../js/firebase-config.js';
+    import { onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+    import { db } from '../js/firebase-config.js';
+    import { collection, getDocs, getDoc, doc, updateDoc, writeBatch, serverTimestamp, query, where } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+
+    onAuthStateChanged(auth, user => { if (!user) window.location.href = 'index.html'; });
+    window.doSignOut = async () => { await signOut(auth); window.location.href = 'index.html'; };
+    document.getElementById('loading').classList.add('hidden');
+
+    const BADGE_META = {
+      B01:{name:'First Dive',pts:10}, B02:{name:'Archive Pearl',pts:10},
+      B03:{name:'SAT Map Reader',pts:20}, B04:{name:'BOL Compass',pts:15},
+      B05:{name:'Friendship Reef',pts:30}, B06:{name:'Current Crew',pts:25},
+      B07:{name:'Full Explorer',pts:50}
+    };
+
+    let foundMemberId = null;
+
+    window.searchMember = async function() {
+      const q = document.getElementById('member-search').value.trim().toUpperCase();
+      if (!q) return;
+      const snap = await getDocs(query(collection(db,'members'), where('accessCode','==',q)));
+      let member = null;
+      if (!snap.empty) { member = { id:snap.docs[0].id, ...snap.docs[0].data() }; }
+      else {
+        const all = await getDocs(collection(db,'members'));
+        const found = all.docs.find(d=>d.data().name.toLowerCase().includes(q.toLowerCase()));
+        if (found) member = { id:found.id, ...found.data() };
+      }
+      if (!member) { showToast('Member not found','error'); return; }
+      foundMemberId = member.id;
+      document.getElementById('found-name').textContent = member.name;
+      document.getElementById('found-info').textContent = `${member.status} · ${member.satType} · ${member.accessCode}`;
+
+      // Load badges
+      const badgeSnap = await getDocs(collection(db,'members',member.id,'badges'));
+      const badges = {};
+      badgeSnap.forEach(d => { badges[d.id] = d.data(); });
+
+      document.getElementById('badge-toggles').innerHTML = Object.entries(BADGE_META).map(([id,meta]) => {
+        const b = badges[id] || {};
+        return `
+          <div class="flex items-center justify-between p-3 rounded-xl border ${b.unlocked?'border-sky-blue bg-mist-blue':'border-gray-200'}">
+            <div>
+              <span class="font-bold text-ocean-dark text-sm">${id} — ${meta.name}</span>
+              ${b.adminOverride?'<span class="text-xs text-coral-red ml-2">Admin Override</span>':''}
+              ${b.unlocked?`<span class="text-xs text-sky-blue ml-2">Unlocked ✅</span>`:'<span class="text-xs text-gray-400 ml-2">Locked</span>'}
+            </div>
+            <button onclick="toggleBadge('${id}', ${!b.unlocked})"
+              class="${b.unlocked?'btn-danger':'btn-primary'} btn-sm" style="width:auto;display:inline-block;padding:6px 12px;font-size:0.75rem">
+              ${b.unlocked?'Lock':'Unlock'}
+            </button>
+          </div>`;
+      }).join('');
+
+      document.getElementById('search-result').classList.remove('hidden');
+    };
+
+    window.toggleBadge = async function(badgeId, unlock) {
+      if (!foundMemberId) return;
+      document.getElementById('page-loader').classList.remove('hidden');
+      try {
+        const meta = BADGE_META[badgeId];
+        await updateDoc(doc(db,'members',foundMemberId,'badges',badgeId), {
+          unlocked:true && unlock, adminOverride:true,
+          unlockedAt: unlock ? serverTimestamp() : null
+        });
+        if (unlock) {
+          const ms = await getDoc(doc(db,'members',foundMemberId));
+          await updateDoc(doc(db,'members',foundMemberId), { points:(ms.data().points||0)+meta.pts });
+        }
+        showToast(`${badgeId} ${unlock?'unlocked':'locked'}!`, 'success');
+        searchMember();
+      } catch { showToast('Error','error'); }
+      document.getElementById('page-loader').classList.add('hidden');
+    };
+
+    window.massUnlock = async function() {
+      const badgeId = document.getElementById('mass-badge').value;
+      if (!confirm(`Unlock ${badgeId} for ALL checked-in members? This cannot be undone.`)) return;
+      document.getElementById('page-loader').classList.remove('hidden');
+      try {
+        const membersSnap = await getDocs(collection(db,'members'));
+        const checkedIn   = membersSnap.docs.filter(d=>d.data().checkedIn);
+        const meta = BADGE_META[badgeId];
+        const batch = writeBatch(db);
+        for (const m of checkedIn) {
+          const badgeRef  = doc(db,'members',m.id,'badges',badgeId);
+          const badgeSnap = await getDoc(badgeRef);
+          if (!badgeSnap.exists() || !badgeSnap.data().unlocked) {
+            batch.update(badgeRef, { unlocked:true, unlockedAt:serverTimestamp(), adminOverride:true });
+            batch.update(doc(db,'members',m.id), { points:(m.data().points||0)+meta.pts });
+          }
+        }
+        await batch.commit();
+        showToast(`${badgeId} unlocked for ${checkedIn.length} members!`, 'success');
+      } catch(err) { showToast('Error: '+err.message,'error'); }
+      document.getElementById('page-loader').classList.add('hidden');
+    };
+
+    function showToast(msg,type='info'){const c=document.getElementById('toast-container');const t=document.createElement('div');t.className=`toast toast-${type}`;t.textContent=msg;c.appendChild(t);setTimeout(()=>t.classList.add('show'),10);setTimeout(()=>{t.classList.remove('show');setTimeout(()=>t.remove(),300);},3500);}
+  </script>
+</body>
+</html>

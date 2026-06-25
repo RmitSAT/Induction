@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Export Data — SAT Admin</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/style.css">
+  <script>tailwind.config={theme:{extend:{colors:{'ocean-deep':'#03045E','ocean-dark':'#023E8A','ocean-mid':'#0077B6','sky-blue':'#00B4D8','foam-blue':'#ADE8F4','mist-blue':'#CAF0F8','coral-red':'#D62828'},fontFamily:{nunito:['Nunito','sans-serif']}}}}</script>
+</head>
+<body class="font-nunito bg-gray-50 min-h-screen">
+  <div id="toast-container"></div>
+  <div id="page-loader" class="page-loader hidden"><div class="spinner"></div><p>Exporting...</p></div>
+  <nav class="bg-ocean-deep text-white px-6 py-3 flex items-center justify-between">
+    <div><a href="dashboard.html" class="text-foam-blue font-bold text-sm">&larr; Dashboard</a><span class="font-black text-lg ml-4">📥 Export Data</span></div>
+    <button onclick="doSignOut()" class="btn-danger btn-sm">Sign Out</button>
+  </nav>
+  <div class="max-w-3xl mx-auto px-4 py-6">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div class="card p-5">
+        <h3 class="font-black text-ocean-dark mb-1">👥 Member List</h3>
+        <p class="text-xs text-gray-500 mb-4">Name, code, status, SAT type, check-in time, points, team</p>
+        <button onclick="exportMembers()" class="btn-primary">⬇️ Download CSV</button>
+      </div>
+      <div class="card p-5">
+        <h3 class="font-black text-ocean-dark mb-1">🏅 Badge Progress</h3>
+        <p class="text-xs text-gray-500 mb-4">Member × badge matrix (unlocked/locked + timestamp)</p>
+        <button onclick="exportBadges()" class="btn-primary">⬇️ Download CSV</button>
+      </div>
+      <div class="card p-5">
+        <h3 class="font-black text-ocean-dark mb-1">🚢 Team Assignments</h3>
+        <p class="text-xs text-gray-500 mb-4">Member name + their team assignment</p>
+        <button onclick="exportTeams()" class="btn-primary">⬇️ Download CSV</button>
+      </div>
+      <div class="card p-5">
+        <h3 class="font-black text-ocean-dark mb-1">🪸 Scan Logs</h3>
+        <p class="text-xs text-gray-500 mb-4">All Find Fellow Sứa scan records</p>
+        <button onclick="exportScans()" class="btn-primary">⬇️ Download CSV</button>
+      </div>
+      <div class="card p-5 md:col-span-2">
+        <h3 class="font-black text-ocean-dark mb-1">📦 Full Export</h3>
+        <p class="text-xs text-gray-500 mb-4">All data as JSON (members + badges + teams)</p>
+        <button onclick="exportFull()" class="btn-primary">⬇️ Download JSON</button>
+      </div>
+    </div>
+  </div>
+  <script type="module">
+    import { auth } from '../js/firebase-config.js';
+    import { onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+    import { db } from '../js/firebase-config.js';
+    import { collection, getDocs, doc } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+    onAuthStateChanged(auth,u=>{if(!u)window.location.href='index.html';});
+    window.doSignOut=async()=>{await signOut(auth);window.location.href='index.html';};
+
+    function dl(content, filename, type='text/csv') {
+      const blob=new Blob(['﻿'+content],{type:type+';charset=utf-8'});
+      const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=filename; a.click();
+    }
+    function toCSV(rows) {
+      return rows.map(r=>r.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(',')).join('\r\n');
+    }
+    function ts(t){return t?new Date(t.seconds*1000).toLocaleString('vi-VN'):'';}
+
+    window.exportMembers=async function(){
+      document.getElementById('page-loader').classList.remove('hidden');
+      const snap=await getDocs(collection(db,'members'));
+      const rows=[['No','Name','Code','Status','SAT Type','School','Major','DoB','Checked-in','Points','Team ID','Created']];
+      snap.docs.forEach((d,i)=>{const m=d.data();rows.push([i+1,m.name,m.accessCode,m.status,m.satType,m.school,m.major,m.dateOfBirth,m.checkedIn?'Yes':'No',m.points||0,m.teamId||'',ts(m.createdAt)]);});
+      dl(toCSV(rows),'members.csv');
+      document.getElementById('page-loader').classList.add('hidden');
+    };
+
+    window.exportBadges=async function(){
+      document.getElementById('page-loader').classList.remove('hidden');
+      const BADGE_IDS=['B01','B02','B03','B04','B05','B06','B07'];
+      const snap=await getDocs(collection(db,'members'));
+      const headers=['Name','Code',...BADGE_IDS];
+      const rows=[headers];
+      for(const d of snap.docs){
+        const m=d.data();
+        const bSnap=await getDocs(collection(db,'members',d.id,'badges'));
+        const badges={};bSnap.forEach(b=>badges[b.id]=b.data());
+        rows.push([m.name,m.accessCode,...BADGE_IDS.map(id=>badges[id]?.unlocked?ts(badges[id].unlockedAt)||'✓':'')]);
+      }
+      dl(toCSV(rows),'badges.csv');
+      document.getElementById('page-loader').classList.add('hidden');
+    };
+
+    window.exportTeams=async function(){
+      document.getElementById('page-loader').classList.remove('hidden');
+      const [membersSnap,teamsSnap]=await Promise.all([getDocs(collection(db,'members')),getDocs(collection(db,'teams'))]);
+      const teamMap={};teamsSnap.docs.forEach(d=>teamMap[d.id]=d.data().name);
+      const rows=[['Name','Code','Team Name']];
+      membersSnap.docs.forEach(d=>{const m=d.data();rows.push([m.name,m.accessCode,m.teamId?teamMap[m.teamId]||m.teamId:'No Team']);});
+      dl(toCSV(rows),'teams.csv');
+      document.getElementById('page-loader').classList.add('hidden');
+    };
+
+    window.exportScans=async function(){
+      document.getElementById('page-loader').classList.remove('hidden');
+      const snap=await getDocs(collection(db,'scanLogs'));
+      const rows=[['Scanner ID','Target ID','Tile Index','Result','Timestamp']];
+      snap.docs.forEach(d=>{const s=d.data();rows.push([s.scannerId,s.targetId,s.tileIndex,s.result?'TRUE':'FALSE',ts(s.timestamp)]);});
+      dl(toCSV(rows),'scanlogs.csv');
+      document.getElementById('page-loader').classList.add('hidden');
+    };
+
+    window.exportFull=async function(){
+      document.getElementById('page-loader').classList.remove('hidden');
+      const [mSnap,tSnap]=await Promise.all([getDocs(collection(db,'members')),getDocs(collection(db,'teams'))]);
+      const data={members:mSnap.docs.map(d=>({id:d.id,...d.data()})),teams:tSnap.docs.map(d=>({id:d.id,...d.data()})),exportedAt:new Date().toISOString()};
+      dl(JSON.stringify(data,null,2),'sat-export.json','application/json');
+      document.getElementById('page-loader').classList.add('hidden');
+    };
+  </script>
+</body>
+</html>

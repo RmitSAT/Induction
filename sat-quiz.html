@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>SAT Ocean Map — Sứa Khám Phá</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <script>tailwind.config={theme:{extend:{colors:{'ocean-deep':'#03045E','ocean-dark':'#023E8A','ocean-mid':'#0077B6','ocean-teal':'#0096C7','sky-blue':'#00B4D8','foam-blue':'#ADE8F4','mist-blue':'#CAF0F8','coral-red':'#D62828'},fontFamily:{nunito:['Nunito','sans-serif']}}}}</script>
+</head>
+<body class="font-nunito bg-mist-blue">
+  <div id="toast-container"></div>
+
+  <header class="top-header">
+    <a href="dashboard.html" class="text-foam-blue font-bold text-sm">&larr; Home</a>
+    <span class="text-white font-black">🗺️ SAT Ocean Map</span>
+    <div class="w-14"></div>
+  </header>
+
+  <div class="page-content px-4 pb-10">
+
+    <!-- Banner -->
+    <div class="bg-ocean-gradient rounded-2xl p-5 mb-5 text-center">
+      <div class="text-4xl mb-2">🗺️</div>
+      <h1 class="text-white font-black text-xl">SAT Ocean Map Quiz</h1>
+      <p class="text-sky-blue text-sm mt-1">Vượt qua bài quiz để nhận huy hiệu</p>
+      <div class="mt-3 inline-block bg-sky-blue text-ocean-dark font-black px-4 py-1 rounded-full text-sm">+20 Points</div>
+    </div>
+
+    <div id="loading" class="text-center py-10"><div class="spinner mx-auto"></div></div>
+
+    <!-- Already passed -->
+    <div id="already-passed" class="hidden">
+      <div class="card p-6 text-center">
+        <div class="text-5xl mb-3">🎓</div>
+        <h2 class="text-ocean-dark font-black text-xl mb-2">Đã Vượt Qua!</h2>
+        <p class="text-gray-500 text-sm mb-4">Bạn đã hoàn thành SAT Ocean Map Quiz và nhận huy hiệu.</p>
+        <div class="bg-mist-blue rounded-xl p-4 mb-4">
+          <p class="text-ocean-dark font-bold">Điểm cao nhất: <span id="best-score" class="text-ocean-mid">—</span></p>
+        </div>
+        <a href="dashboard.html" class="btn-primary">← Về Mission Hub</a>
+      </div>
+    </div>
+
+    <!-- Intro -->
+    <div id="quiz-intro" class="hidden">
+      <div class="card p-5 mb-4">
+        <h2 class="font-black text-ocean-dark text-lg mb-3">Trước khi bắt đầu</h2>
+        <ul class="text-sm text-gray-600 space-y-2">
+          <li>📌 <span id="q-count">5</span> câu hỏi về SAT</li>
+          <li>✅ Cần đúng ít nhất <span id="pass-mark">3</span>/<span id="q-count2">5</span> câu để qua</li>
+          <li>🔄 Có thể làm lại nếu không đạt</li>
+          <li>⏱️ Không giới hạn thời gian</li>
+        </ul>
+        <button onclick="startQuiz()" class="btn-primary mt-5">🚀 Bắt đầu Quiz!</button>
+      </div>
+    </div>
+
+    <!-- Quiz playing -->
+    <div id="quiz-playing" class="hidden">
+      <!-- Progress -->
+      <div class="flex items-center justify-between mb-3">
+        <span class="text-ocean-dark font-bold text-sm">Câu <span id="q-num">1</span>/<span id="q-total">5</span></span>
+        <span class="text-ocean-mid font-bold text-sm" id="score-display">0 đúng</span>
+      </div>
+      <div class="progress-bar-track mb-5">
+        <div class="progress-bar-fill" id="quiz-progress-bar" style="width:0%"></div>
+      </div>
+
+      <div class="card p-5 mb-4">
+        <p class="font-black text-ocean-dark text-base mb-5" id="question-text"></p>
+        <div class="space-y-3" id="options-container"></div>
+      </div>
+
+      <button id="next-btn" onclick="nextQuestion()" disabled class="btn-primary">Câu tiếp theo &rarr;</button>
+    </div>
+
+    <!-- Results -->
+    <div id="quiz-results" class="hidden">
+      <div class="card p-6 text-center">
+        <div class="text-5xl mb-3" id="result-emoji">🎉</div>
+        <h2 class="font-black text-ocean-dark text-xl mb-1" id="result-title"></h2>
+        <p class="text-gray-500 text-sm mb-4" id="result-subtitle"></p>
+        <div class="bg-mist-blue rounded-xl p-4 mb-5">
+          <p class="text-4xl font-black text-ocean-mid mb-1" id="result-score"></p>
+          <p class="text-sm text-gray-500">câu trả lời đúng</p>
+        </div>
+        <div id="result-actions"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <nav class="bottom-nav">
+    <a href="dashboard.html"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l9-9 9 9M5 10v9a1 1 0 001 1h4v-5h4v5h4a1 1 0 001-1v-9"/></svg>Home</a>
+    <a href="badges.html"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"/></svg>Badges</a>
+    <a href="leaderboard.html"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>Rank</a>
+    <a href="profile.html"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>Profile</a>
+  </nav>
+
+  <script type="module">
+    import { requireAuth } from './js/auth.js';
+    import { db } from './js/firebase-config.js';
+    import { doc, getDoc, getDocs, collection, query, where, orderBy, updateDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+
+    const session = requireAuth();
+    let questions = [], currentQ = 0, score = 0, selectedIdx = null, passMark = 3;
+
+    async function load() {
+      const [badgeSnap, settingsSnap, qSnap] = await Promise.all([
+        getDoc(doc(db,'members',session.memberId,'badges','B03')),
+        getDoc(doc(db,'config','settings')),
+        getDocs(query(collection(db,'quizQuestions'), where('active','==',true), orderBy('order')))
+      ]);
+
+      document.getElementById('loading').classList.add('hidden');
+
+      const b03 = badgeSnap.exists() ? badgeSnap.data() : {};
+      if (b03.unlocked) {
+        const memberSnap = await getDoc(doc(db,'members',session.memberId));
+        document.getElementById('best-score').textContent = `${memberSnap.data().quizScore || 0}/${questions.length || 5}`;
+        document.getElementById('already-passed').classList.remove('hidden');
+        return;
+      }
+
+      const settings = settingsSnap.exists() ? settingsSnap.data() : {};
+      passMark = settings.quizPassMark || 3;
+
+      questions = qSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      if (questions.length === 0) {
+        document.getElementById('quiz-intro').innerHTML = '<div class="card p-5 text-center"><p class="text-coral-red font-bold">Chưa có câu hỏi. Liên hệ ban tổ chức!</p><a href="dashboard.html" class="btn-secondary mt-4">← Home</a></div>';
+        document.getElementById('quiz-intro').classList.remove('hidden');
+        return;
+      }
+
+      document.getElementById('q-count').textContent  = questions.length;
+      document.getElementById('q-count2').textContent = questions.length;
+      document.getElementById('q-total').textContent  = questions.length;
+      document.getElementById('pass-mark').textContent = passMark;
+      document.getElementById('quiz-intro').classList.remove('hidden');
+    }
+
+    window.startQuiz = function() {
+      currentQ = 0; score = 0; selectedIdx = null;
+      document.getElementById('quiz-intro').classList.add('hidden');
+      document.getElementById('quiz-playing').classList.remove('hidden');
+      renderQuestion();
+    };
+
+    function renderQuestion() {
+      const q = questions[currentQ];
+      document.getElementById('q-num').textContent = currentQ + 1;
+      document.getElementById('score-display').textContent = `${score} đúng`;
+      document.getElementById('quiz-progress-bar').style.width = `${(currentQ/questions.length)*100}%`;
+      document.getElementById('question-text').textContent = q.question;
+      document.getElementById('next-btn').disabled = true;
+      selectedIdx = null;
+
+      const letters = ['A','B','C','D'];
+      document.getElementById('options-container').innerHTML = q.options.map((opt,i) => `
+        <button class="quiz-option w-full text-left" onclick="selectOption(this, ${i}, ${q.correctIndex})">
+          <span class="font-black text-ocean-mid w-6">${letters[i]}.</span>
+          <span>${opt}</span>
+        </button>`).join('');
+    }
+
+    window.selectOption = function(btn, idx, correct) {
+      if (selectedIdx !== null) return;
+      selectedIdx = idx;
+      const opts = document.querySelectorAll('.quiz-option');
+      opts.forEach((o,i) => {
+        o.style.pointerEvents = 'none';
+        if (i === correct) o.classList.add('correct');
+        else if (i === idx && idx !== correct) o.classList.add('wrong');
+        else o.classList.add('selected');
+      });
+      if (idx === correct) score++;
+      document.getElementById('next-btn').disabled = false;
+      document.getElementById('next-btn').textContent = currentQ < questions.length-1 ? 'Câu tiếp theo →' : 'Xem kết quả';
+    };
+
+    window.nextQuestion = async function() {
+      currentQ++;
+      if (currentQ < questions.length) { renderQuestion(); return; }
+      // Show results
+      document.getElementById('quiz-playing').classList.add('hidden');
+      document.getElementById('quiz-results').classList.remove('hidden');
+      const passed = score >= passMark;
+      document.getElementById('result-emoji').textContent   = passed ? '🎉' : '😅';
+      document.getElementById('result-title').textContent   = passed ? 'Xuất Sắc! Bạn đã vượt qua!' : 'Chưa đạt. Thử lại nhé!';
+      document.getElementById('result-subtitle').textContent = passed ? 'SAT Map Reader Badge đã được mở khoá!' : `Cần đúng ít nhất ${passMark} câu.`;
+      document.getElementById('result-score').textContent   = `${score}/${questions.length}`;
+      document.getElementById('result-actions').innerHTML = passed
+        ? '<a href="dashboard.html" class="btn-primary">🏠 Về Mission Hub</a>'
+        : '<button onclick="startQuiz()" class="btn-primary mb-3">🔄 Thử lại</button><a href="dashboard.html" class="btn-secondary">← Home</a>';
+
+      // Save to DB
+      try {
+        const memberSnap = await getDoc(doc(db,'members',session.memberId));
+        const cur = memberSnap.data();
+        const updates = {
+          quizAttempts: (cur.quizAttempts||0) + 1,
+          quizScore: Math.max(cur.quizScore||0, score),
+        };
+        if (passed && !cur.quizPassed) {
+          updates.quizPassed = true;
+          updates.points = (cur.points||0) + 20;
+          await updateDoc(doc(db,'members',session.memberId,'badges','B03'), { unlocked:true, unlockedAt:serverTimestamp() });
+          await checkFullExplorer();
+        }
+        await updateDoc(doc(db,'members',session.memberId), updates);
+      } catch {}
+    };
+
+    async function checkFullExplorer() {
+      try {
+        const badgeIds = ['B01','B02','B03','B04','B05','B06'];
+        const snaps = await Promise.all(badgeIds.map(id => getDoc(doc(db,'members',session.memberId,'badges',id))));
+        const allDone = snaps.every(s => s.exists() && s.data().unlocked);
+        if (allDone) {
+          await updateDoc(doc(db,'members',session.memberId,'badges','B07'), { unlocked:true, unlockedAt:serverTimestamp() });
+          const ms = await getDoc(doc(db,'members',session.memberId));
+          await updateDoc(doc(db,'members',session.memberId), { points:(ms.data().points||0)+50 });
+        }
+      } catch {}
+    }
+
+    function showToast(msg, type='info') {
+      const c=document.getElementById('toast-container');
+      const t=document.createElement('div'); t.className=`toast toast-${type}`; t.textContent=msg;
+      c.appendChild(t); setTimeout(()=>t.classList.add('show'),10);
+      setTimeout(()=>{t.classList.remove('show');setTimeout(()=>t.remove(),300);},3000);
+    }
+
+    load();
+  </script>
+</body>
+</html>

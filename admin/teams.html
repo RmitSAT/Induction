@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Team Generator — SAT Admin</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/style.css">
+  <script>tailwind.config={theme:{extend:{colors:{'ocean-deep':'#03045E','ocean-dark':'#023E8A','ocean-mid':'#0077B6','ocean-teal':'#0096C7','sky-blue':'#00B4D8','foam-blue':'#ADE8F4','mist-blue':'#CAF0F8','coral-red':'#D62828'},fontFamily:{nunito:['Nunito','sans-serif']}}}}</script>
+</head>
+<body class="font-nunito bg-gray-50 min-h-screen">
+  <div id="toast-container"></div>
+  <div id="page-loader" class="page-loader hidden"><div class="spinner"></div><p>Processing...</p></div>
+
+  <nav class="bg-ocean-deep text-white px-6 py-3 flex items-center justify-between">
+    <div><a href="dashboard.html" class="text-foam-blue font-bold text-sm">&larr; Dashboard</a><span class="font-black text-lg ml-4">🚢 Teams</span></div>
+    <button onclick="doSignOut()" class="btn-danger btn-sm">Sign Out</button>
+  </nav>
+
+  <div class="max-w-5xl mx-auto px-4 py-6">
+
+    <!-- Generator controls -->
+    <div class="card p-5 mb-6">
+      <h2 class="font-black text-ocean-dark mb-3">⚙️ Team Generator</h2>
+      <div class="flex flex-wrap gap-4 mb-4">
+        <div>
+          <label class="label">Team Size (target)</label>
+          <input id="team-size" type="number" value="7" min="4" max="12" class="input-field" style="max-width:100px">
+        </div>
+        <div>
+          <label class="label">Team Name Prefix</label>
+          <input id="team-prefix" type="text" value="Team Sứa" class="input-field" style="max-width:150px">
+        </div>
+      </div>
+      <div class="flex gap-3 flex-wrap">
+        <button onclick="generateTeams()" class="btn-primary btn-sm" style="width:auto;display:inline-block">🔀 Generate Teams</button>
+        <button onclick="saveTeams()" id="save-btn" class="btn-primary btn-sm hidden" style="width:auto;display:inline-block;background:#059669">💾 Save Teams</button>
+        <button onclick="clearTeams()" class="btn-danger btn-sm" style="display:inline-block">🗑 Clear All Teams</button>
+      </div>
+    </div>
+
+    <div id="loading" class="text-center py-6"><div class="spinner mx-auto"></div></div>
+
+    <!-- Existing teams -->
+    <div id="existing-teams" class="hidden mb-6">
+      <h2 class="font-black text-ocean-dark mb-3">Current Teams</h2>
+      <div id="existing-list" class="space-y-3"></div>
+    </div>
+
+    <!-- Preview -->
+    <div id="preview-section" class="hidden">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="font-black text-ocean-dark">Team Preview (<span id="preview-count">0</span> teams)</h2>
+        <span class="text-sm text-gray-500">Review before saving</span>
+      </div>
+      <div id="preview-grid" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { auth } from '../js/firebase-config.js';
+    import { onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+    import { db } from '../js/firebase-config.js';
+    import { collection, getDocs, getDoc, doc, setDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+
+    onAuthStateChanged(auth, user => { if (!user) window.location.href = 'index.html'; });
+    window.doSignOut = async () => { await signOut(auth); window.location.href = 'index.html'; };
+
+    let generatedTeams = [];
+    let allMembers     = [];
+
+    const SAT_TYPES = ['spotlight','flow','care','creative','calm'];
+    const TEAM_COLORS = ['#0077B6','#E63946','#2EC4B6','#FF9F1C','#9B5DE5','#F15BB5','#00BBF9','#06D6A0'];
+
+    async function load() {
+      const [membersSnap, teamsSnap] = await Promise.all([
+        getDocs(collection(db,'members')),
+        getDocs(collection(db,'teams'))
+      ]);
+      allMembers = membersSnap.docs.map(d=>({id:d.id,...d.data()}));
+      document.getElementById('loading').classList.add('hidden');
+
+      // Show existing teams
+      const teams = teamsSnap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>a.name.localeCompare(b.name));
+      if (teams.length > 0) {
+        document.getElementById('existing-list').innerHTML = teams.map(t => `
+          <div class="card p-4 flex items-center gap-3" style="border-left:4px solid ${t.colorHex||'#0077B6'}">
+            <div class="flex-1">
+              <p class="font-black text-ocean-dark">${t.name}</p>
+              <p class="text-sm text-gray-500">${(t.memberIds||[]).length} members · ${t.score||0} pts</p>
+            </div>
+            <button onclick="markBondingDone('${t.id}')" class="btn-primary btn-sm" style="width:auto;display:inline-block;padding:6px 12px;font-size:0.75rem">
+              ${t.bondingDone?'✅ Bonding Done':'Mark Bonding Done'}
+            </button>
+          </div>`).join('');
+        document.getElementById('existing-teams').classList.remove('hidden');
+      }
+    }
+
+    window.generateTeams = function() {
+      const size   = parseInt(document.getElementById('team-size').value) || 7;
+      const prefix = document.getElementById('team-prefix').value.trim() || 'Team Sứa';
+      const checkedIn = allMembers.filter(m=>m.checkedIn);
+      if (checkedIn.length === 0) { showToast('No checked-in members!','error'); return; }
+
+      // Split by status
+      const newbies = shuffle(checkedIn.filter(m=>m.status==='newbie'));
+      const oldbies = shuffle(checkedIn.filter(m=>m.status==='oldbie'));
+      const total   = checkedIn.length;
+      const numTeams = Math.max(1, Math.round(total / size));
+
+      // Init empty teams
+      const teams = Array.from({length:numTeams}, (_,i) => ({
+        name:`${prefix} ${i+1}`, members:[], colorHex:TEAM_COLORS[i%TEAM_COLORS.length]
+      }));
+
+      // Distribute oldbies first (round-robin)
+      oldbies.forEach((m,i) => teams[i%numTeams].members.push(m));
+      // Then newbies
+      newbies.forEach((m,i) => teams[i%numTeams].members.push(m));
+
+      generatedTeams = teams;
+      renderPreview();
+      document.getElementById('save-btn').classList.remove('hidden');
+    };
+
+    function renderPreview() {
+      document.getElementById('preview-count').textContent = generatedTeams.length;
+      const SAT_ICONS = {spotlight:'⭐',flow:'🌊',care:'💙',creative:'🎨',calm:'🧘'};
+      document.getElementById('preview-grid').innerHTML = generatedTeams.map((t,ti) => `
+        <div class="card p-4" style="border-top:4px solid ${t.colorHex}">
+          <div class="flex items-center gap-2 mb-3">
+            <span class="font-black text-ocean-dark">${t.name}</span>
+            <span class="text-xs text-gray-400">${t.members.length} members</span>
+          </div>
+          <div class="space-y-2">
+            ${t.members.map(m=>`
+              <div class="flex items-center gap-2 text-sm">
+                <span class="chip ${m.status==='newbie'?'chip-newbie':'chip-oldbie'} text-xs">${m.status==='newbie'?'N':'O'}</span>
+                <span>${SAT_ICONS[m.satType]||''}</span>
+                <span class="font-semibold text-ocean-dark">${m.name}</span>
+              </div>`).join('')}
+          </div>
+        </div>`).join('');
+      document.getElementById('preview-section').classList.remove('hidden');
+    }
+
+    window.saveTeams = async function() {
+      if (!confirm(`Save ${generatedTeams.length} teams? This will update all member team assignments.`)) return;
+      document.getElementById('page-loader').classList.remove('hidden');
+      try {
+        // Clear old teams
+        const oldTeamsSnap = await getDocs(collection(db,'teams'));
+        const batch1 = writeBatch(db);
+        oldTeamsSnap.forEach(d => batch1.delete(d.ref));
+        await batch1.commit();
+
+        // Create new teams + update member teamId
+        const batch2 = writeBatch(db);
+        for (const t of generatedTeams) {
+          const teamRef = doc(collection(db,'teams'));
+          const memberIds = t.members.map(m=>m.id);
+          batch2.set(teamRef, { name:t.name, memberIds, score:0, bondingDone:false, colorHex:t.colorHex, createdAt:serverTimestamp() });
+          for (const m of t.members) {
+            batch2.update(doc(db,'members',m.id), { teamId:teamRef.id });
+          }
+        }
+        await batch2.commit();
+
+        showToast(`${generatedTeams.length} teams saved successfully!`,'success');
+        document.getElementById('save-btn').classList.add('hidden');
+        setTimeout(()=>window.location.reload(),1500);
+      } catch(err) { showToast('Error: '+err.message,'error'); }
+      document.getElementById('page-loader').classList.add('hidden');
+    };
+
+    window.clearTeams = async function() {
+      if (!confirm('Clear ALL teams and remove team assignments from all members?')) return;
+      document.getElementById('page-loader').classList.remove('hidden');
+      try {
+        const teamsSnap = await getDocs(collection(db,'teams'));
+        const membersSnap = await getDocs(collection(db,'members'));
+        const batch = writeBatch(db);
+        teamsSnap.forEach(d => batch.delete(d.ref));
+        membersSnap.forEach(d => batch.update(d.ref, { teamId:null }));
+        await batch.commit();
+        showToast('All teams cleared','success');
+        setTimeout(()=>window.location.reload(),1200);
+      } catch { showToast('Error','error'); }
+      document.getElementById('page-loader').classList.add('hidden');
+    };
+
+    window.markBondingDone = async function(teamId) {
+      document.getElementById('page-loader').classList.remove('hidden');
+      try {
+        const teamSnap = await getDoc(doc(db,'teams',teamId));
+        const memberIds = teamSnap.data().memberIds || [];
+        const batch = writeBatch(db);
+        batch.update(doc(db,'teams',teamId), { bondingDone:true });
+        for (const mid of memberIds) {
+          const badgeRef = doc(db,'members',mid,'badges','B06');
+          const badgeSnap = await getDoc(badgeRef);
+          if (!badgeSnap.exists() || !badgeSnap.data().unlocked) {
+            batch.update(badgeRef, { unlocked:true, unlockedAt:serverTimestamp(), adminOverride:false });
+            const ms = await getDoc(doc(db,'members',mid));
+            batch.update(doc(db,'members',mid), { bondingCompleted:true, points:(ms.data().points||0)+25 });
+          }
+        }
+        await batch.commit();
+        showToast('Bonding marked complete! B06 badge unlocked for team!','success');
+        setTimeout(()=>window.location.reload(),1200);
+      } catch(err) { showToast('Error: '+err.message,'error'); }
+      document.getElementById('page-loader').classList.add('hidden');
+    };
+
+    function shuffle(arr) { return [...arr].sort(()=>Math.random()-0.5); }
+    function showToast(msg,type='info'){const c=document.getElementById('toast-container');const t=document.createElement('div');t.className=`toast toast-${type}`;t.textContent=msg;c.appendChild(t);setTimeout(()=>t.classList.add('show'),10);setTimeout(()=>{t.classList.remove('show');setTimeout(()=>t.remove(),300);},3500);}
+
+    load();
+  </script>
+</body>
+</html>

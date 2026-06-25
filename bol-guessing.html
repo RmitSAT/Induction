@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Meet Your Sea Captains — Sứa Khám Phá</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <script>tailwind.config={theme:{extend:{colors:{'ocean-deep':'#03045E','ocean-dark':'#023E8A','ocean-mid':'#0077B6','ocean-teal':'#0096C7','sky-blue':'#00B4D8','foam-blue':'#ADE8F4','mist-blue':'#CAF0F8','coral-red':'#D62828'},fontFamily:{nunito:['Nunito','sans-serif']}}}}</script>
+</head>
+<body class="font-nunito bg-mist-blue">
+  <div id="toast-container"></div>
+
+  <header class="top-header">
+    <a href="dashboard.html" class="text-foam-blue font-bold text-sm">&larr; Home</a>
+    <span class="text-white font-black">⚓ Sea Captains</span>
+    <div class="w-14"></div>
+  </header>
+
+  <div class="page-content px-4 pb-10">
+
+    <div class="bg-ocean-gradient rounded-2xl p-5 mb-5 text-center">
+      <div class="text-4xl mb-2">⚓</div>
+      <h1 class="text-white font-black text-xl">Meet Your Sea Captains</h1>
+      <p class="text-sky-blue text-sm mt-1">Làm quen với Ban Lãnh Đạo SAT — BOL</p>
+      <div class="mt-3 inline-block bg-sky-blue text-ocean-dark font-black px-4 py-1 rounded-full text-sm">+15 Points</div>
+    </div>
+
+    <div id="loading" class="text-center py-10"><div class="spinner mx-auto"></div></div>
+
+    <!-- Already done -->
+    <div id="already-done" class="hidden">
+      <div class="card p-6 text-center">
+        <div class="text-5xl mb-3">⚓</div>
+        <h2 class="text-ocean-dark font-black text-xl mb-2">Đã Hoàn Thành!</h2>
+        <p class="text-gray-500 text-sm mb-4">Bạn đã tham gia hoạt động Meet Your Sea Captains!</p>
+        <a href="dashboard.html" class="btn-primary">← Về Mission Hub</a>
+      </div>
+    </div>
+
+    <!-- Active -->
+    <div id="active-content" class="hidden space-y-4">
+      <div class="card p-4">
+        <p class="text-sm text-gray-600 leading-relaxed">
+          Đây là hoạt động giới thiệu BOL (Ban Ổn Lòng) — những Sea Captains dẫn dắt hành trình của bạn trong SAT!
+          Hãy lắng nghe, đoán xem ai nói gì, và tìm hiểu thêm về những người bạn đồng hành của mình. 🎯
+        </p>
+      </div>
+
+      <!-- BOL cards loaded dynamically -->
+      <div id="bol-cards" class="grid grid-cols-1 gap-3"></div>
+
+      <!-- Confirm participation -->
+      <div class="card p-5">
+        <h3 class="font-black text-ocean-dark mb-3">Xác Nhận Tham Gia</h3>
+        <label class="flex items-start gap-3 cursor-pointer mb-4">
+          <input type="checkbox" id="bol-check" class="mt-1 w-5 h-5 accent-ocean-mid" onchange="toggleBOLBtn()">
+          <span class="text-sm text-gray-600">Tôi đã tham gia hoạt động "Meet Your Sea Captains" và Two Truths One Lie</span>
+        </label>
+        <button id="bol-confirm-btn" onclick="confirmBOL()" disabled class="btn-primary">⚓ Nhận BOL Compass Badge</button>
+      </div>
+
+      <div class="card-ocean p-4 text-sm text-ocean-dark">
+        <p class="font-bold">⚠️ Lưu ý:</p>
+        <p class="mt-1">Chỉ xác nhận khi bạn đã thực sự tham gia hoạt động trực tiếp. Hãy trung thực!</p>
+      </div>
+    </div>
+  </div>
+
+  <nav class="bottom-nav">
+    <a href="dashboard.html"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l9-9 9 9M5 10v9a1 1 0 001 1h4v-5h4v5h4a1 1 0 001-1v-9"/></svg>Home</a>
+    <a href="badges.html"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"/></svg>Badges</a>
+    <a href="leaderboard.html"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>Rank</a>
+    <a href="profile.html"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>Profile</a>
+  </nav>
+
+  <script type="module">
+    import { requireAuth } from './js/auth.js';
+    import { db } from './js/firebase-config.js';
+    import { doc, getDoc, getDocs, collection, updateDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+
+    const session = requireAuth();
+
+    async function load() {
+      const [badgeSnap, bolSnap] = await Promise.all([
+        getDoc(doc(db,'members',session.memberId,'badges','B04')),
+        getDocs(collection(db,'bolMembers'))
+      ]);
+      document.getElementById('loading').classList.add('hidden');
+
+      const b04 = badgeSnap.exists() ? badgeSnap.data() : {};
+      if (b04.unlocked) { document.getElementById('already-done').classList.remove('hidden'); return; }
+
+      // Render BOL cards
+      const bolMembers = bolSnap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>a.order-b.order);
+      const container = document.getElementById('bol-cards');
+      if (bolMembers.length === 0) {
+        container.innerHTML = '<div class="card-ocean p-4 text-center text-ocean-dark text-sm">Thông tin BOL sẽ được cập nhật trong sự kiện!</div>';
+      } else {
+        container.innerHTML = bolMembers.map(b => `
+          <div class="card p-4 flex gap-3 items-start">
+            <div class="text-3xl">${b.emoji || '👤'}</div>
+            <div>
+              <p class="font-black text-ocean-dark">${b.name}</p>
+              <p class="text-xs text-sky-blue font-bold mb-1">${b.role || ''}</p>
+              <p class="text-sm text-gray-600">${b.funFact || ''}</p>
+            </div>
+          </div>`).join('');
+      }
+
+      document.getElementById('active-content').classList.remove('hidden');
+    }
+
+    window.toggleBOLBtn = function() {
+      document.getElementById('bol-confirm-btn').disabled = !document.getElementById('bol-check').checked;
+    };
+
+    window.confirmBOL = async function() {
+      const btn = document.getElementById('bol-confirm-btn');
+      btn.disabled = true; btn.textContent = 'Đang xử lý...';
+      try {
+        const ms = await getDoc(doc(db,'members',session.memberId));
+        const cur = ms.data();
+        await updateDoc(doc(db,'members',session.memberId), { bolParticipated:true, points:(cur.points||0)+15 });
+        await updateDoc(doc(db,'members',session.memberId,'badges','B04'), { unlocked:true, unlockedAt:serverTimestamp() });
+        showToast('⚓ BOL Compass Badge đã mở khoá!', 'success');
+        setTimeout(()=>{ document.getElementById('active-content').classList.add('hidden'); document.getElementById('already-done').classList.remove('hidden'); }, 1200);
+      } catch {
+        showToast('Lỗi. Thử lại nhé!','error');
+        btn.disabled=false; btn.textContent='⚓ Nhận BOL Compass Badge';
+      }
+    };
+
+    function showToast(msg,type='info'){const c=document.getElementById('toast-container');const t=document.createElement('div');t.className=`toast toast-${type}`;t.textContent=msg;c.appendChild(t);setTimeout(()=>t.classList.add('show'),10);setTimeout(()=>{t.classList.remove('show');setTimeout(()=>t.remove(),300);},3500);}
+    load();
+  </script>
+</body>
+</html>

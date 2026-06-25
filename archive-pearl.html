@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Archive Pearl — Sứa Khám Phá</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <script>tailwind.config={theme:{extend:{colors:{'ocean-deep':'#03045E','ocean-dark':'#023E8A','ocean-mid':'#0077B6','ocean-teal':'#0096C7','sky-blue':'#00B4D8','foam-blue':'#ADE8F4','mist-blue':'#CAF0F8','coral-red':'#D62828'},fontFamily:{nunito:['Nunito','sans-serif']}}}}</script>
+</head>
+<body class="font-nunito bg-mist-blue">
+  <div id="toast-container"></div>
+
+  <header class="top-header">
+    <a href="dashboard.html" class="text-foam-blue font-bold text-sm">&larr; Home</a>
+    <span class="text-white font-black">🐚 Archive Pearl</span>
+    <div class="w-14"></div>
+  </header>
+
+  <div class="page-content px-4 pb-10">
+
+    <!-- Badge info banner -->
+    <div class="bg-ocean-gradient rounded-2xl p-5 mb-5 text-center">
+      <div class="text-4xl mb-2">🐚</div>
+      <h1 class="text-white font-black text-xl">Archive Pearl Mission</h1>
+      <p class="text-sky-blue text-sm mt-1">Hoàn thành form/khảo sát để nhận huy hiệu</p>
+      <div class="mt-3 inline-block bg-sky-blue text-ocean-dark font-black px-4 py-1 rounded-full text-sm">+10 Points</div>
+    </div>
+
+    <!-- Loading -->
+    <div id="loading" class="text-center py-10"><div class="spinner mx-auto"></div></div>
+
+    <!-- Already done -->
+    <div id="already-done" class="hidden">
+      <div class="card p-6 text-center">
+        <div class="text-5xl mb-3">✅</div>
+        <h2 class="text-ocean-dark font-black text-xl mb-2">Đã Hoàn Thành!</h2>
+        <p class="text-gray-500 text-sm mb-4">Bạn đã hoàn thành Archive Pearl Mission và nhận được huy hiệu.</p>
+        <div class="bg-mist-blue rounded-xl p-4 mb-4">
+          <p class="text-ocean-dark font-bold text-sm">🐚 Archive Pearl Badge</p>
+          <p class="text-sky-blue font-black text-lg">+10 điểm đã được cộng!</p>
+        </div>
+        <a href="dashboard.html" class="btn-primary">← Về Mission Hub</a>
+      </div>
+    </div>
+
+    <!-- Active mission -->
+    <div id="active-mission" class="hidden space-y-4">
+      <div class="card p-5">
+        <h2 class="font-black text-ocean-dark text-lg mb-2">Nhiệm Vụ của Bạn</h2>
+        <p class="text-gray-600 text-sm mb-4" id="mission-desc">Đang tải...</p>
+
+        <div class="bg-mist-blue rounded-xl p-4 mb-4 text-sm text-ocean-dark">
+          <p class="font-bold mb-1">📋 Hướng dẫn:</p>
+          <ol class="list-decimal list-inside space-y-1 text-gray-600">
+            <li>Nhấn nút bên dưới để mở form/khảo sát</li>
+            <li>Điền đầy đủ thông tin trong form</li>
+            <li>Submit form xong, quay lại trang này</li>
+            <li>Tích xác nhận và nhận huy hiệu!</li>
+          </ol>
+        </div>
+
+        <a id="form-link" href="#" target="_blank" rel="noopener" class="btn-primary mb-3 block text-center">
+          📝 Mở Form / Khảo Sát
+        </a>
+      </div>
+
+      <div class="card p-5">
+        <h3 class="font-black text-ocean-dark mb-3">Xác Nhận Hoàn Thành</h3>
+        <label class="flex items-start gap-3 cursor-pointer">
+          <input type="checkbox" id="confirm-check" class="mt-1 w-5 h-5 accent-ocean-mid" onchange="toggleConfirmBtn()">
+          <span class="text-sm text-gray-600">Tôi đã hoàn thành và submit form/khảo sát theo yêu cầu</span>
+        </label>
+        <button id="confirm-btn" onclick="confirmCompletion()" disabled class="btn-primary mt-4">
+          🐚 Nhận Archive Pearl Badge
+        </button>
+      </div>
+
+      <div class="card-ocean p-4 text-sm text-ocean-dark">
+        <p class="font-bold">ℹ️ Lưu ý:</p>
+        <p class="mt-1">Ban HR/BOL sẽ kiểm tra phản hồi form sau sự kiện. Huy hiệu có thể bị thu hồi nếu không hoàn thành thật sự.</p>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Bottom nav -->
+  <nav class="bottom-nav">
+    <a href="dashboard.html"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l9-9 9 9M5 10v9a1 1 0 001 1h4v-5h4v5h4a1 1 0 001-1v-9"/></svg>Home</a>
+    <a href="badges.html"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"/></svg>Badges</a>
+    <a href="leaderboard.html"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>Rank</a>
+    <a href="profile.html"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>Profile</a>
+  </nav>
+
+  <script type="module">
+    import { requireAuth } from './js/auth.js';
+    import { db } from './js/firebase-config.js';
+    import { doc, getDoc, updateDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+
+    const session = requireAuth();
+
+    async function load() {
+      const [memberSnap, settingsSnap, badgeSnap] = await Promise.all([
+        getDoc(doc(db, 'members', session.memberId)),
+        getDoc(doc(db, 'config', 'settings')),
+        getDoc(doc(db, 'members', session.memberId, 'badges', 'B02'))
+      ]);
+
+      const member   = memberSnap.data();
+      const settings = settingsSnap.exists() ? settingsSnap.data() : {};
+      const b02      = badgeSnap.exists() ? badgeSnap.data() : {};
+
+      document.getElementById('loading').classList.add('hidden');
+
+      if (b02.unlocked) {
+        document.getElementById('already-done').classList.remove('hidden');
+        return;
+      }
+
+      // Set correct link
+      const isNewbie = member.status === 'newbie';
+      const link = isNewbie
+        ? (settings.archivePearlLinkNewbie || '#')
+        : (settings.archivePearlLinkOldbie || '#');
+      const desc = isNewbie
+        ? 'Là Newbie, bạn cần hoàn thành Zoho Member Information Form để Ban Nhân Sự cập nhật thông tin.'
+        : 'Là Oldbie, bạn cần hoàn thành SAT Reflection Survey để chia sẻ cảm nhận về hành trình SAT.';
+
+      document.getElementById('mission-desc').textContent = desc;
+      document.getElementById('form-link').href = link;
+      document.getElementById('active-mission').classList.remove('hidden');
+    }
+
+    window.toggleConfirmBtn = function() {
+      document.getElementById('confirm-btn').disabled = !document.getElementById('confirm-check').checked;
+    };
+
+    window.confirmCompletion = async function() {
+      const btn = document.getElementById('confirm-btn');
+      btn.disabled = true; btn.textContent = 'Đang xử lý...';
+      try {
+        await updateDoc(doc(db,'members',session.memberId), { archivePearlDone: true, points: (await (await getDoc(doc(db,'members',session.memberId))).data().points || 0) + 10 });
+        await updateDoc(doc(db,'members',session.memberId,'badges','B02'), { unlocked: true, unlockedAt: serverTimestamp() });
+        // Recalc points properly
+        const snap = await getDoc(doc(db,'members',session.memberId));
+        const cur = snap.data().points || 0;
+        await updateDoc(doc(db,'members',session.memberId), { points: cur + 10 });
+
+        showToast('🎉 Huy hiệu Archive Pearl đã mở khoá!', 'success');
+        setTimeout(() => { document.getElementById('active-mission').classList.add('hidden'); document.getElementById('already-done').classList.remove('hidden'); }, 1200);
+      } catch {
+        showToast('Lỗi. Thử lại nhé!', 'error');
+        btn.disabled = false; btn.textContent = '🐚 Nhận Archive Pearl Badge';
+      }
+    };
+
+    function showToast(msg, type='info') {
+      const c=document.getElementById('toast-container');
+      const t=document.createElement('div'); t.className=`toast toast-${type}`; t.textContent=msg;
+      c.appendChild(t); setTimeout(()=>t.classList.add('show'),10);
+      setTimeout(()=>{t.classList.remove('show');setTimeout(()=>t.remove(),300);},3500);
+    }
+
+    load();
+  </script>
+</body>
+</html>

@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Mission Hub — Sứa Khám Phá</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <script>tailwind.config={theme:{extend:{colors:{'ocean-deep':'#03045E','ocean-dark':'#023E8A','ocean-mid':'#0077B6','ocean-teal':'#0096C7','sky-blue':'#00B4D8','foam-blue':'#ADE8F4','mist-blue':'#CAF0F8','coral-red':'#D62828'},fontFamily:{nunito:['Nunito','sans-serif']}}}}</script>
+</head>
+<body class="font-nunito bg-mist-blue">
+  <div id="toast-container"></div>
+
+  <!-- Top Header -->
+  <header class="top-header">
+    <div class="flex items-center gap-3">
+      <div id="header-avatar" class="w-9 h-9 rounded-full bg-sky-blue flex items-center justify-center text-ocean-dark font-black text-sm overflow-hidden">
+        <span id="avatar-initials">?</span>
+      </div>
+      <div>
+        <p class="text-xs text-foam-blue">Xin chào,</p>
+        <p class="font-bold text-sm" id="header-name">...</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-3">
+      <div class="bg-sky-blue text-ocean-dark font-black px-3 py-1 rounded-lg text-sm" id="header-points">0 pts</div>
+      <a href="profile.html" title="Profile">
+        <svg class="w-6 h-6 text-foam-blue" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.121 17.804A8 8 0 1118.88 6.196M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+        </svg>
+      </a>
+    </div>
+  </header>
+
+  <div class="page-content px-4 pt-4">
+
+    <!-- Hero banner -->
+    <div class="bg-ocean-gradient rounded-2xl p-5 mb-5 text-white text-center">
+      <div class="text-3xl mb-1">🪼</div>
+      <h1 class="font-black text-xl">Mission Hub</h1>
+      <p class="text-sky-blue text-sm mt-1">Sứa Khám Phá 2026B</p>
+      <div class="mt-3 flex justify-center gap-4 text-center">
+        <div>
+          <p class="text-2xl font-black" id="badge-count">0</p>
+          <p class="text-xs text-foam-blue">Badges</p>
+        </div>
+        <div class="border-l border-sky-blue"></div>
+        <div>
+          <p class="text-2xl font-black" id="total-points">0</p>
+          <p class="text-xs text-foam-blue">Points</p>
+        </div>
+        <div class="border-l border-sky-blue"></div>
+        <div>
+          <p class="text-2xl font-black" id="fellow-count">0/10</p>
+          <p class="text-xs text-foam-blue">Tiles</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Loading -->
+    <div id="loading-missions" class="text-center py-10">
+      <div class="spinner mx-auto"></div>
+      <p class="text-ocean-dark mt-3 font-semibold">Đang tải nhiệm vụ...</p>
+    </div>
+
+    <!-- Mission list -->
+    <div id="missions-list" class="space-y-3 hidden"></div>
+
+  </div>
+
+  <!-- Bottom nav -->
+  <nav class="bottom-nav">
+    <a href="dashboard.html" class="active">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l9-9 9 9M5 10v9a1 1 0 001 1h4v-5h4v5h4a1 1 0 001-1v-9"/></svg>
+      Home
+    </a>
+    <a href="badges.html">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"/></svg>
+      Badges
+    </a>
+    <a href="leaderboard.html">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+      Rank
+    </a>
+    <a href="profile.html">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+      Profile
+    </a>
+  </nav>
+
+  <script type="module">
+    import { requireAuth } from './js/auth.js';
+    import { db } from './js/firebase-config.js';
+    import { doc, getDoc, collection, getDocs } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+
+    const session = requireAuth();
+    if (!session) throw new Error('No session');
+
+    const MISSIONS = [
+      { id:'B01', icon:'🤿', name:'First Dive', viName:'Check-in + Hồ Sơ Sứa', desc:'Hoàn thành đăng ký hồ sơ', page:'profile.html', pts:10 },
+      { id:'B02', icon:'🐚', name:'Archive Pearl', viName:'Lưu Trữ Ngọc Trai', desc:'Hoàn thành form/khảo sát', page:'archive-pearl.html', pts:10 },
+      { id:'B03', icon:'🗺️', name:'SAT Map Reader', viName:'SAT Ocean Map', desc:'Vượt qua bài quiz về SAT', page:'sat-quiz.html', pts:20 },
+      { id:'B04', icon:'⚓', name:'BOL Compass', viName:'Gặp Gỡ Sea Captains', desc:'Tham gia hoạt động BOL', page:'bol-guessing.html', pts:15 },
+      { id:'B05', icon:'🪸', name:'Friendship Reef', viName:'Tìm Bạn Sứa', desc:'Khám phá 6/10 mảnh ghép', page:'find-fellow.html', pts:30 },
+      { id:'B06', icon:'🚢', name:'Current Crew', viName:'Đội Kết Nối', desc:'Tham gia trò chơi team bonding', page:'team.html', pts:25 },
+      { id:'B07', icon:'🏆', name:'Full Explorer', viName:'Nhà Thám Hiểm Trọn Vẹn', desc:'Hoàn thành tất cả huy hiệu', page:'badges.html', pts:50 },
+    ];
+
+    async function loadDashboard() {
+      try {
+        const memberDoc = await getDoc(doc(db, 'members', session.memberId));
+        if (!memberDoc.exists()) { window.location.href = 'index.html'; return; }
+        const member = memberDoc.data();
+
+        // Header
+        document.getElementById('header-name').textContent = member.name;
+        const initials = member.name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+        if (member.photoURL) {
+          document.getElementById('header-avatar').innerHTML = `<img src="${member.photoURL}" class="w-full h-full object-cover">`;
+        } else {
+          document.getElementById('avatar-initials').textContent = initials;
+        }
+
+        // Load badges
+        const badgesSnap = await getDocs(collection(db, 'members', session.memberId, 'badges'));
+        const badges = {};
+        badgesSnap.forEach(d => { badges[d.id] = d.data(); });
+
+        let totalPoints = 0;
+        let badgeCount  = 0;
+        Object.values(badges).forEach(b => { if (b.unlocked) { totalPoints += b.points; badgeCount++; } });
+
+        document.getElementById('total-points').textContent = totalPoints;
+        document.getElementById('badge-count').textContent  = badgeCount;
+        document.getElementById('fellow-count').textContent = `${member.fellowProgress||0}/10`;
+        document.getElementById('header-points').textContent = `${totalPoints} pts`;
+
+        // Render missions
+        const list = document.getElementById('missions-list');
+        list.innerHTML = MISSIONS.map(m => {
+          const badge = badges[m.id] || { unlocked: false };
+          const done  = badge.unlocked;
+          const isB07 = m.id === 'B07';
+          const extra = m.id === 'B05' ? ` <span class="text-xs text-ocean-mid font-bold">(${member.fellowProgress||0}/10)</span>` : '';
+          return `
+            <a href="${m.page}" class="mission-card ${done ? 'completed' : ''} block p-4 flex items-center gap-4 no-underline">
+              <div class="text-3xl ${done ? '' : 'grayscale opacity-60'}">${m.icon}</div>
+              <div class="flex-1">
+                <div class="flex items-center gap-2 flex-wrap">
+                  <span class="font-black text-ocean-dark text-sm">${m.viName}</span>
+                  <span class="text-xs text-gray-400">${m.name}</span>
+                </div>
+                <p class="text-xs text-gray-500 mt-0.5">${m.desc}${extra}</p>
+              </div>
+              <div class="flex flex-col items-end gap-1">
+                <span class="text-xs font-bold ${done ? 'text-sky-blue' : 'text-gray-400'}">+${m.pts} pts</span>
+                ${done ? '<span class="text-lg">✅</span>' : '<span class="text-lg text-gray-300">🔒</span>'}
+              </div>
+            </a>`;
+        }).join('');
+
+        document.getElementById('loading-missions').classList.add('hidden');
+        document.getElementById('missions-list').classList.remove('hidden');
+      } catch (err) {
+        document.getElementById('loading-missions').innerHTML = '<p class="text-coral-red font-bold">Lỗi tải dữ liệu. Thử tải lại trang.</p>';
+      }
+    }
+
+    loadDashboard();
+  </script>
+</body>
+</html>

@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Badge Collection — Sứa Khám Phá</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <script>tailwind.config={theme:{extend:{colors:{'ocean-deep':'#03045E','ocean-dark':'#023E8A','ocean-mid':'#0077B6','ocean-teal':'#0096C7','sky-blue':'#00B4D8','foam-blue':'#ADE8F4','mist-blue':'#CAF0F8','coral-red':'#D62828'},fontFamily:{nunito:['Nunito','sans-serif']}}}}</script>
+</head>
+<body class="font-nunito bg-mist-blue">
+  <div id="toast-container"></div>
+
+  <header class="top-header">
+    <a href="dashboard.html" class="text-foam-blue font-bold text-sm">&larr; Home</a>
+    <span class="text-white font-black">🏅 Badge Collection</span>
+    <div class="w-14"></div>
+  </header>
+
+  <div class="page-content px-4 pb-10">
+
+    <!-- Summary banner -->
+    <div class="bg-ocean-gradient rounded-2xl p-5 mb-5 text-center">
+      <div class="text-4xl mb-1">🏅</div>
+      <h1 class="text-white font-black text-xl">Huy Hiệu Của Bạn</h1>
+      <div class="mt-3 flex justify-center gap-6">
+        <div>
+          <p class="text-2xl font-black text-white" id="badge-count">0</p>
+          <p class="text-xs text-sky-blue">/ 7 Badges</p>
+        </div>
+        <div class="border-l border-sky-blue"></div>
+        <div>
+          <p class="text-2xl font-black text-white" id="total-points">0</p>
+          <p class="text-xs text-sky-blue">Points</p>
+        </div>
+      </div>
+    </div>
+
+    <div id="loading" class="text-center py-10"><div class="spinner mx-auto"></div></div>
+    <div id="badges-grid" class="space-y-3 hidden"></div>
+  </div>
+
+  <nav class="bottom-nav">
+    <a href="dashboard.html"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l9-9 9 9M5 10v9a1 1 0 001 1h4v-5h4v5h4a1 1 0 001-1v-9"/></svg>Home</a>
+    <a href="badges.html" class="active"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"/></svg>Badges</a>
+    <a href="leaderboard.html"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>Rank</a>
+    <a href="profile.html"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>Profile</a>
+  </nav>
+
+  <script type="module">
+    import { requireAuth } from './js/auth.js';
+    import { db } from './js/firebase-config.js';
+    import { doc, getDocs, collection } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+
+    const session = requireAuth();
+
+    const BADGE_META = [
+      { id:'B01', icon:'🤿', name:'First Dive Badge',      viName:'Huy Hiệu Lặn Đầu Tiên', pts:10,  page:'profile.html',       desc:'Check-in và tạo hồ sơ Sứa' },
+      { id:'B02', icon:'🐚', name:'Archive Pearl Badge',   viName:'Huy Hiệu Ngọc Trai',    pts:10,  page:'archive-pearl.html', desc:'Hoàn thành form/khảo sát' },
+      { id:'B03', icon:'🗺️', name:'SAT Map Reader Badge',  viName:'Huy Hiệu Bản Đồ SAT',   pts:20,  page:'sat-quiz.html',      desc:'Vượt qua bài quiz SAT Ocean Map' },
+      { id:'B04', icon:'⚓', name:'BOL Compass Badge',     viName:'Huy Hiệu La Bàn BOL',   pts:15,  page:'bol-guessing.html',  desc:'Tham gia hoạt động Meet Your Sea Captains' },
+      { id:'B05', icon:'🪸', name:'Friendship Reef Badge', viName:'Huy Hiệu Rạn San Hô',   pts:30,  page:'find-fellow.html',   desc:'Khám phá 6/10 mảnh ghép Sứa' },
+      { id:'B06', icon:'🚢', name:'Current Crew Badge',    viName:'Huy Hiệu Đồng Hành',    pts:25,  page:'team.html',          desc:'Hoàn thành trò chơi team bonding' },
+      { id:'B07', icon:'🏆', name:'Full Explorer Badge',   viName:'Huy Hiệu Nhà Thám Hiểm',pts:50,  page:'dashboard.html',     desc:'Hoàn thành tất cả nhiệm vụ B01–B06' },
+    ];
+
+    async function load() {
+      const snap = await getDocs(collection(db,'members',session.memberId,'badges'));
+      const badges = {};
+      snap.forEach(d => { badges[d.id] = d.data(); });
+
+      let totalPts=0, count=0;
+      Object.values(badges).forEach(b => { if(b.unlocked){totalPts+=b.points;count++;} });
+      document.getElementById('total-points').textContent = totalPts;
+      document.getElementById('badge-count').textContent  = count;
+
+      const grid = document.getElementById('badges-grid');
+      grid.innerHTML = BADGE_META.map(m => {
+        const b    = badges[m.id] || {};
+        const done = b.unlocked;
+        const isB07 = m.id === 'B07';
+        const dateStr = b.unlockedAt ? new Date(b.unlockedAt.seconds*1000).toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'}) : '';
+        return `
+          <a href="${m.page}" class="badge-card ${done?'unlocked':'locked'} ${isB07&&done?'badge-glow':''} flex items-center gap-4 p-4 no-underline block">
+            <div class="text-4xl ${done?'':'opacity-30'} flex-shrink-0">${m.icon}</div>
+            <div class="flex-1">
+              <p class="font-black text-ocean-dark text-sm">${m.viName}</p>
+              <p class="text-xs text-gray-500">${m.name}</p>
+              <p class="text-xs text-gray-400 mt-0.5">${m.desc}</p>
+              ${done && dateStr ? `<p class="text-xs text-sky-blue mt-1">✅ Mở lúc ${dateStr}</p>` : ''}
+            </div>
+            <div class="flex flex-col items-end gap-1">
+              <span class="font-black text-sm ${done?'text-sky-blue':'text-gray-300'}">+${m.pts}</span>
+              <span class="text-lg">${done?'🏅':'🔒'}</span>
+              ${b.adminOverride ? '<span class="text-xs text-coral-red">Admin</span>' : ''}
+            </div>
+          </a>`;
+      }).join('');
+
+      document.getElementById('loading').classList.add('hidden');
+      document.getElementById('badges-grid').classList.remove('hidden');
+    }
+
+    load().catch(() => {
+      document.getElementById('loading').innerHTML = '<p class="text-coral-red font-bold">Lỗi tải dữ liệu.</p>';
+    });
+  </script>
+</body>
+</html>

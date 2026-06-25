@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Login — SAT Explorer</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/style.css">
+  <script>tailwind.config={theme:{extend:{colors:{'ocean-deep':'#03045E','ocean-dark':'#023E8A','ocean-mid':'#0077B6','ocean-teal':'#0096C7','sky-blue':'#00B4D8','foam-blue':'#ADE8F4','mist-blue':'#CAF0F8','coral-red':'#D62828'},fontFamily:{nunito:['Nunito','sans-serif']}}}}</script>
+</head>
+<body class="font-nunito bg-ocean-gradient min-h-screen flex items-center justify-center p-5">
+  <div id="toast-container"></div>
+
+  <div class="card w-full max-w-sm p-6">
+    <div class="text-center mb-6">
+      <div class="text-4xl mb-2">🔐</div>
+      <h1 class="font-black text-ocean-dark text-2xl">Admin Portal</h1>
+      <p class="text-gray-500 text-sm mt-1">SAT Explorer 2026B</p>
+    </div>
+
+    <label class="label" for="admin-email">Email</label>
+    <input id="admin-email" type="email" class="input-field mb-4" placeholder="admin@sat.vn">
+
+    <label class="label" for="admin-pass">Password</label>
+    <input id="admin-pass" type="password" class="input-field mb-5" placeholder="••••••••">
+
+    <button id="login-btn" class="btn-primary">🔐 Sign In</button>
+
+    <div class="text-center mt-4">
+      <a href="../index.html" class="text-sm text-ocean-mid hover:underline">← Back to member site</a>
+    </div>
+  </div>
+
+  <script type="module">
+    import { auth } from '../js/firebase-config.js';
+    import { signInWithEmailAndPassword, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+
+    onAuthStateChanged(auth, user => { if (user) window.location.href = 'dashboard.html'; });
+
+    document.getElementById('login-btn').addEventListener('click', async () => {
+      const email = document.getElementById('admin-email').value.trim();
+      const pass  = document.getElementById('admin-pass').value;
+      if (!email || !pass) { showToast('Fill in all fields!', 'error'); return; }
+      const btn = document.getElementById('login-btn');
+      btn.disabled = true; btn.textContent = 'Signing in...';
+      try {
+        await signInWithEmailAndPassword(auth, email, pass);
+        window.location.href = 'dashboard.html';
+      } catch {
+        showToast('Invalid credentials. Try again.', 'error');
+        btn.disabled = false; btn.textContent = '🔐 Sign In';
+      }
+    });
+
+    document.getElementById('admin-pass').addEventListener('keydown', e => { if(e.key==='Enter') document.getElementById('login-btn').click(); });
+
+    function showToast(msg,type='info'){const c=document.getElementById('toast-container');const t=document.createElement('div');t.className=`toast toast-${type}`;t.textContent=msg;c.appendChild(t);setTimeout(()=>t.classList.add('show'),10);setTimeout(()=>{t.classList.remove('show');setTimeout(()=>t.remove(),300);},3000);}
+  </script>
+</body>
+</html>

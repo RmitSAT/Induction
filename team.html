@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Team của Bạn — Sứa Khám Phá</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <script>tailwind.config={theme:{extend:{colors:{'ocean-deep':'#03045E','ocean-dark':'#023E8A','ocean-mid':'#0077B6','ocean-teal':'#0096C7','sky-blue':'#00B4D8','foam-blue':'#ADE8F4','mist-blue':'#CAF0F8','coral-red':'#D62828'},fontFamily:{nunito:['Nunito','sans-serif']}}}}</script>
+</head>
+<body class="font-nunito bg-mist-blue">
+
+  <header class="top-header">
+    <a href="dashboard.html" class="text-foam-blue font-bold text-sm">&larr; Home</a>
+    <span class="text-white font-black">🚢 Team của Bạn</span>
+    <div class="w-14"></div>
+  </header>
+
+  <div class="page-content px-4 pb-10">
+    <div id="loading" class="text-center py-16"><div class="spinner mx-auto"></div></div>
+
+    <!-- No team yet -->
+    <div id="no-team" class="hidden text-center py-10">
+      <div class="text-5xl mb-3">⏳</div>
+      <h2 class="text-ocean-dark font-black text-xl mb-2">Chưa có Team</h2>
+      <p class="text-gray-500 text-sm">Team sẽ được xếp ngay sau hoạt động Team Formation.<br>Hãy giữ nguyên vị trí và chờ BTC thông báo!</p>
+      <div class="mt-6 bg-ocean-gradient rounded-2xl p-4 text-white text-sm">
+        🌊 Sắp có đồng đội rồi, hang on!
+      </div>
+    </div>
+
+    <!-- Team display -->
+    <div id="team-display" class="hidden">
+      <div id="team-banner" class="rounded-2xl p-5 mb-5 text-center text-white" style="background: linear-gradient(135deg, #0077B6, #00B4D8)">
+        <div class="text-3xl mb-2">🚢</div>
+        <h1 class="font-black text-2xl" id="team-name">Team</h1>
+        <div class="mt-3 flex justify-center gap-4">
+          <div><p class="font-black text-xl" id="team-score">0</p><p class="text-xs text-sky-blue">Team Points</p></div>
+          <div class="border-l border-sky-blue"></div>
+          <div><p class="font-black text-xl" id="team-count">0</p><p class="text-xs text-sky-blue">Thành Viên</p></div>
+        </div>
+      </div>
+
+      <!-- Bonding status -->
+      <div id="bonding-pending" class="card p-4 mb-4 text-center">
+        <div class="text-3xl mb-2">🎮</div>
+        <p class="font-bold text-ocean-dark">Team Bonding Challenge</p>
+        <p class="text-sm text-gray-500 mt-1">BTC sẽ thông báo khi team bonding bắt đầu!</p>
+        <div class="chip chip-red mt-3 mx-auto inline-block">⏳ Chờ BTC thông báo</div>
+      </div>
+      <div id="bonding-done" class="card p-4 mb-4 text-center hidden">
+        <div class="text-3xl mb-2">🎉</div>
+        <p class="font-bold text-ocean-dark">Team Bonding hoàn thành!</p>
+        <p class="text-sm text-gray-500 mt-1">Huy hiệu Current Crew đã được mở khoá!</p>
+        <div class="chip chip-green mt-3 mx-auto inline-block">✅ Đã hoàn thành</div>
+      </div>
+
+      <!-- Team members -->
+      <div class="card p-4">
+        <h3 class="font-black text-ocean-dark mb-4">Thành Viên</h3>
+        <div id="team-members" class="space-y-3"></div>
+      </div>
+    </div>
+  </div>
+
+  <nav class="bottom-nav">
+    <a href="dashboard.html"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l9-9 9 9M5 10v9a1 1 0 001 1h4v-5h4v5h4a1 1 0 001-1v-9"/></svg>Home</a>
+    <a href="badges.html"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"/></svg>Badges</a>
+    <a href="leaderboard.html"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>Rank</a>
+    <a href="profile.html"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>Profile</a>
+  </nav>
+
+  <script type="module">
+    import { requireAuth } from './js/auth.js';
+    import { db } from './js/firebase-config.js';
+    import { doc, getDoc, getDocs, collection, query, where } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+
+    const session = requireAuth();
+    const SAT_LABELS = {spotlight:'⭐ Spotlight',flow:'🌊 Flow',care:'💙 Care',creative:'🎨 Creative',calm:'🧘 Calm'};
+
+    async function load() {
+      const memberSnap = await getDoc(doc(db,'members',session.memberId));
+      const member = memberSnap.data();
+      document.getElementById('loading').classList.add('hidden');
+
+      if (!member.teamId) { document.getElementById('no-team').classList.remove('hidden'); return; }
+
+      const teamSnap = await getDoc(doc(db,'teams',member.teamId));
+      if (!teamSnap.exists()) { document.getElementById('no-team').classList.remove('hidden'); return; }
+      const team = teamSnap.data();
+
+      document.getElementById('team-name').textContent  = team.name;
+      document.getElementById('team-score').textContent = team.score || 0;
+      document.getElementById('team-count').textContent = (team.memberIds||[]).length;
+      if (team.colorHex) document.getElementById('team-banner').style.background = `linear-gradient(135deg, ${team.colorHex}, #00B4D8)`;
+
+      if (team.bondingDone) {
+        document.getElementById('bonding-pending').classList.add('hidden');
+        document.getElementById('bonding-done').classList.remove('hidden');
+      }
+
+      // Load team members
+      const memberIds = team.memberIds || [];
+      const memberDocs = await Promise.all(memberIds.map(id => getDoc(doc(db,'members',id))));
+      const membersContainer = document.getElementById('team-members');
+      membersContainer.innerHTML = memberDocs.map(snap => {
+        if (!snap.exists()) return '';
+        const m = snap.data();
+        const isMe = snap.id === session.memberId;
+        return `
+          <div class="flex items-center gap-3 p-2 rounded-xl ${isMe?'bg-mist-blue':''} ">
+            <div class="w-10 h-10 rounded-full overflow-hidden bg-sky-blue flex items-center justify-center flex-shrink-0">
+              ${m.photoURL ? `<img src="${m.photoURL}" class="w-full h-full object-cover">` : `<span class="font-black text-ocean-dark text-xs">${m.name.slice(0,2).toUpperCase()}</span>`}
+            </div>
+            <div class="flex-1">
+              <p class="font-bold text-ocean-dark text-sm">${m.name} ${isMe?'<span class="text-xs text-coral-red">(bạn)</span>':''}</p>
+              <div class="flex gap-1 mt-0.5 flex-wrap">
+                <span class="chip ${m.status==='newbie'?'chip-newbie':'chip-oldbie'} text-xs">${m.status}</span>
+                <span class="chip chip-sat text-xs">${SAT_LABELS[m.satType]||m.satType}</span>
+              </div>
+            </div>
+            <div class="text-sm font-bold text-ocean-mid">${m.points||0} pts</div>
+          </div>`;
+      }).join('');
+
+      document.getElementById('team-display').classList.remove('hidden');
+    }
+
+    load().catch(() => { document.getElementById('loading').innerHTML = '<p class="text-coral-red font-bold text-center">Lỗi tải dữ liệu.</p>'; });
+  </script>
+</body>
+</html>

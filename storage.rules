@@ -1,0 +1,15 @@
+// Firebase Storage is NOT used in this project.
+// Member photos are stored as compressed base64 strings directly in Firestore
+// (field: members/{id}.photoURL) to avoid the paid Blaze plan requirement.
+//
+// If you later upgrade to Blaze and want to use Storage, uncomment:
+//
+// rules_version = '2';
+// service firebase.storage {
+//   match /b/{bucket}/o {
+//     match /member-photos/{filename} {
+//       allow read: if true;
+//       allow write: if true;
+//     }
+//   }
+// }

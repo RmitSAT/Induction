@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Questions Editor — SAT Admin</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/style.css">
+  <script>tailwind.config={theme:{extend:{colors:{'ocean-deep':'#03045E','ocean-dark':'#023E8A','ocean-mid':'#0077B6','sky-blue':'#00B4D8','foam-blue':'#ADE8F4','mist-blue':'#CAF0F8','coral-red':'#D62828'},fontFamily:{nunito:['Nunito','sans-serif']}}}}</script>
+</head>
+<body class="font-nunito bg-gray-50 min-h-screen">
+  <div id="toast-container"></div>
+  <div id="page-loader" class="page-loader hidden"><div class="spinner"></div><p>Saving...</p></div>
+
+  <nav class="bg-ocean-deep text-white px-6 py-3 flex items-center justify-between">
+    <div><a href="dashboard.html" class="text-foam-blue font-bold text-sm">&larr; Dashboard</a><span class="font-black text-lg ml-4">📝 Questions</span></div>
+    <button onclick="doSignOut()" class="btn-danger btn-sm">Sign Out</button>
+  </nav>
+
+  <div class="max-w-3xl mx-auto px-4 py-6">
+    <!-- Tabs -->
+    <div class="flex bg-white rounded-xl p-1 mb-5 shadow-sm">
+      <button id="tab-tf"   onclick="switchTab('tf')"   class="flex-1 py-2 rounded-lg font-bold text-sm bg-ocean-mid text-white">🎯 T/F Statements</button>
+      <button id="tab-quiz" onclick="switchTab('quiz')" class="flex-1 py-2 rounded-lg font-bold text-sm text-gray-400">🗺️ Quiz Questions</button>
+    </div>
+
+    <!-- T/F Statements -->
+    <div id="tf-section">
+      <div class="card-ocean p-3 mb-4 text-sm text-ocean-dark">
+        ⚠️ <strong>Warning:</strong> These 10 statements are used in Check-in AND Find Fellow. Edit before the event starts.
+      </div>
+      <div id="tf-list" class="space-y-3 mb-4"></div>
+      <button onclick="addTF()" class="btn-secondary">+ Add Statement</button>
+      <button onclick="seedTFDefaults()" class="btn-primary mt-2">🌱 Seed Default Statements</button>
+    </div>
+
+    <!-- Quiz Questions -->
+    <div id="quiz-section" class="hidden">
+      <div id="quiz-list" class="space-y-3 mb-4"></div>
+      <button onclick="addQuiz()" class="btn-secondary">+ Add Question</button>
+      <button onclick="seedQuizDefaults()" class="btn-primary mt-2">🌱 Seed Default Questions</button>
+    </div>
+  </div>
+
+  <script type="module">
+    import { auth } from '../js/firebase-config.js';
+    import { onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+    import { db } from '../js/firebase-config.js';
+    import { collection, getDocs, doc, setDoc, deleteDoc, addDoc, updateDoc, writeBatch } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+
+    onAuthStateChanged(auth,u=>{if(!u)window.location.href='index.html';});
+    window.doSignOut=async()=>{await signOut(auth);window.location.href='index.html';};
+
+    let tfDocs  = [];
+    let quizDocs = [];
+    let activeTab = 'tf';
+
+    window.switchTab = function(tab) {
+      activeTab = tab;
+      document.getElementById('tf-section').classList.toggle('hidden', tab!=='tf');
+      document.getElementById('quiz-section').classList.toggle('hidden', tab!=='quiz');
+      document.getElementById('tab-tf').className   = `flex-1 py-2 rounded-lg font-bold text-sm ${tab==='tf'  ?'bg-ocean-mid text-white':'text-gray-400'}`;
+      document.getElementById('tab-quiz').className = `flex-1 py-2 rounded-lg font-bold text-sm ${tab==='quiz'?'bg-ocean-mid text-white':'text-gray-400'}`;
+    };
+
+    async function loadTF() {
+      const snap = await getDocs(collection(db,'trueFalseStatements'));
+      tfDocs = snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>a.order-b.order);
+      document.getElementById('tf-list').innerHTML = tfDocs.map((s,i)=>`
+        <div class="card p-3 flex items-start gap-3">
+          <span class="font-black text-gray-400 text-sm mt-2 w-5">${i+1}.</span>
+          <input value="${s.statement}" class="input-field flex-1 text-sm py-2" id="tf-stmt-${s.id}" style="padding:8px 12px">
+          <input type="number" value="${s.order}" class="input-field text-sm w-16 py-2" id="tf-ord-${s.id}" style="padding:8px 10px" placeholder="Order">
+          <button onclick="saveTF('${s.id}')" class="btn-primary btn-sm" style="width:auto;padding:6px 12px">Save</button>
+          <button onclick="deleteTF('${s.id}')" class="btn-danger btn-sm" style="padding:6px 10px">🗑</button>
+        </div>`).join('');
+    }
+
+    async function loadQuiz() {
+      const snap = await getDocs(collection(db,'quizQuestions'));
+      quizDocs = snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>a.order-b.order);
+      document.getElementById('quiz-list').innerHTML = quizDocs.map((q,i)=>`
+        <div class="card p-4" id="qcard-${q.id}">
+          <div class="flex items-center gap-2 mb-2">
+            <span class="font-black text-gray-400 text-sm">Q${i+1}</span>
+            <input value="${q.order||i+1}" type="number" class="input-field w-16 text-xs py-1" id="q-ord-${q.id}" placeholder="Order" style="padding:4px 8px">
+            <label class="flex items-center gap-1 text-xs font-semibold ml-auto">
+              <input type="checkbox" ${q.active?'checked':''} id="q-active-${q.id}" class="accent-ocean-mid"> Active
+            </label>
+            <button onclick="deleteQuiz('${q.id}')" class="btn-danger btn-sm" style="padding:4px 10px">🗑</button>
+          </div>
+          <input value="${q.question}" class="input-field mb-2 text-sm" id="q-text-${q.id}" placeholder="Question text" style="padding:8px 12px">
+          <div class="space-y-1 mb-2">
+            ${['A','B','C','D'].map((l,oi)=>`
+              <div class="flex items-center gap-2">
+                <span class="font-bold text-gray-400 w-5">${l}.</span>
+                <input value="${q.options?.[oi]||''}" class="input-field flex-1 text-sm" id="q-opt-${q.id}-${oi}" style="padding:6px 10px">
+                <input type="radio" name="correct-${q.id}" value="${oi}" ${q.correctIndex===oi?'checked':''} id="q-cor-${q.id}-${oi}" class="accent-ocean-mid w-4 h-4">
+                <label for="q-cor-${q.id}-${oi}" class="text-xs text-gray-400">Correct</label>
+              </div>`).join('')}
+          </div>
+          <button onclick="saveQuiz('${q.id}')" class="btn-primary btn-sm" style="width:auto;display:inline-block">💾 Save</button>
+        </div>`).join('');
+    }
+
+    window.saveTF = async function(id) {
+      document.getElementById('page-loader').classList.remove('hidden');
+      await updateDoc(doc(db,'trueFalseStatements',id),{
+        statement: document.getElementById(`tf-stmt-${id}`).value.trim(),
+        order: parseInt(document.getElementById(`tf-ord-${id}`).value)||1
+      });
+      showToast('Statement saved!','success');
+      document.getElementById('page-loader').classList.add('hidden');
+      loadTF();
+    };
+
+    window.deleteTF = async function(id) {
+      if(!confirm('Delete this statement?')) return;
+      document.getElementById('page-loader').classList.remove('hidden');
+      await deleteDoc(doc(db,'trueFalseStatements',id));
+      document.getElementById('page-loader').classList.add('hidden');
+      loadTF();
+    };
+
+    window.addTF = async function() {
+      document.getElementById('page-loader').classList.remove('hidden');
+      await addDoc(collection(db,'trueFalseStatements'),{statement:'New statement',order:tfDocs.length+1,active:true});
+      document.getElementById('page-loader').classList.add('hidden');
+      loadTF();
+    };
+
+    window.saveQuiz = async function(id) {
+      document.getElementById('page-loader').classList.remove('hidden');
+      const correct = ['A','B','C','D'].findIndex((_,i)=>document.getElementById(`q-cor-${id}-${i}`)?.checked);
+      await updateDoc(doc(db,'quizQuestions',id),{
+        question:    document.getElementById(`q-text-${id}`).value.trim(),
+        options:     [0,1,2,3].map(i=>document.getElementById(`q-opt-${id}-${i}`).value.trim()),
+        correctIndex: correct>=0?correct:0,
+        active:      document.getElementById(`q-active-${id}`).checked,
+        order:       parseInt(document.getElementById(`q-ord-${id}`).value)||1
+      });
+      showToast('Question saved!','success');
+      document.getElementById('page-loader').classList.add('hidden');
+      loadQuiz();
+    };
+
+    window.deleteQuiz = async function(id) {
+      if(!confirm('Delete this question?')) return;
+      document.getElementById('page-loader').classList.remove('hidden');
+      await deleteDoc(doc(db,'quizQuestions',id));
+      document.getElementById('page-loader').classList.add('hidden');
+      loadQuiz();
+    };
+
+    window.addQuiz = async function() {
+      document.getElementById('page-loader').classList.remove('hidden');
+      await addDoc(collection(db,'quizQuestions'),{question:'New question',options:['A','B','C','D'],correctIndex:0,active:true,order:quizDocs.length+1});
+      document.getElementById('page-loader').classList.add('hidden');
+      loadQuiz();
+    };
+
+    window.seedTFDefaults = async function() {
+      if(!confirm('This will ADD 10 default T/F statements. Existing ones will remain.')) return;
+      document.getElementById('page-loader').classList.remove('hidden');
+      const defaults = [
+        'Mình biết bơi','Mình biết chơi một nhạc cụ','Mình có nuôi thú cưng',
+        'Mình đã từng đi du lịch một mình','Mình thường thức khuya sau 12 giờ đêm',
+        'Mình đã từng biểu diễn trước đám đông','Mình thích hoạt động nhóm hơn cá nhân',
+        'Mình có học ngoại ngữ ngoài tiếng Anh','Mình dậy trước 7 giờ sáng mỗi ngày',
+        'Mình đã từng tham gia CLB hoặc tổ chức học sinh/sinh viên'
+      ];
+      const batch = writeBatch(db);
+      defaults.forEach((s,i)=>{
+        const ref = doc(collection(db,'trueFalseStatements'));
+        batch.set(ref,{statement:s,order:i+1,active:true});
+      });
+      await batch.commit();
+      document.getElementById('page-loader').classList.add('hidden');
+      showToast('10 default statements added!','success');
+      loadTF();
+    };
+
+    window.seedQuizDefaults = async function() {
+      if(!confirm('Add 5 default SAT quiz questions?')) return;
+      document.getElementById('page-loader').classList.remove('hidden');
+      const defaults = [
+        {q:'SAT là viết tắt của từ gì?',opts:['Student Attachment Team','Student Activity Team','Student Assistance Team','Student Achievement Team'],correct:0},
+        {q:'Số lượng thành viên lý tưởng cho mỗi team bonding là bao nhiêu?',opts:['3-5','6-8','9-12','2-3'],correct:1},
+        {q:'BOL trong SAT có nghĩa là gì?',opts:['Ban Ổn Lòng','Ban Ổn Lương','Ban Ổn Lượng','Ban Ôn Luyện'],correct:0},
+        {q:'Hoạt động "Find Your Fellow Sứa" yêu cầu bạn mở khoá bao nhiêu mảnh để nhận huy hiệu?',opts:['4/10','5/10','6/10','8/10'],correct:2},
+        {q:'Chủ đề của SAT Induction Day 2026B là gì?',opts:['SAT Rising','Sứa Khám Phá','Ocean Dream','Blue Wave'],correct:1},
+      ];
+      const batch = writeBatch(db);
+      defaults.forEach((d,i)=>{
+        const ref = doc(collection(db,'quizQuestions'));
+        batch.set(ref,{question:d.q,options:d.opts,correctIndex:d.correct,active:true,order:i+1});
+      });
+      await batch.commit();
+      document.getElementById('page-loader').classList.add('hidden');
+      showToast('5 default quiz questions added!','success');
+      loadQuiz();
+    };
+
+    function showToast(msg,type='info'){const c=document.getElementById('toast-container');const t=document.createElement('div');t.className=`toast toast-${type}`;t.textContent=msg;c.appendChild(t);setTimeout(()=>t.classList.add('show'),10);setTimeout(()=>{t.classList.remove('show');setTimeout(()=>t.remove(),300);},3000);}
+
+    loadTF(); loadQuiz();
+  </script>
+</body>
+</html>

@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Projector Mode — SAT Explorer</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/style.css">
+  <script>tailwind.config={theme:{extend:{colors:{'ocean-deep':'#03045E','ocean-dark':'#023E8A','ocean-mid':'#0077B6','sky-blue':'#00B4D8','foam-blue':'#ADE8F4','mist-blue':'#CAF0F8','coral-red':'#D62828'},fontFamily:{nunito:['Nunito','sans-serif']}}}}</script>
+  <style>
+    body { background: #03045E; color: white; }
+    .screen { display: none; }
+    .screen.active { display: flex; }
+  </style>
+</head>
+<body class="font-nunito min-h-screen">
+
+  <!-- Controls bar (hideable) -->
+  <div id="controls" class="fixed top-0 left-0 right-0 bg-black bg-opacity-60 z-50 flex flex-wrap gap-2 p-3 items-center">
+    <span class="text-white font-bold text-sm mr-2">Screens:</span>
+    <button onclick="showScreen('leaderboard')" class="bg-sky-500 text-white px-3 py-1 rounded text-sm font-bold">🏆 Leaderboard</button>
+    <button onclick="showScreen('teams')"       class="bg-sky-500 text-white px-3 py-1 rounded text-sm font-bold">🚢 Teams</button>
+    <button onclick="showScreen('missions')"    class="bg-sky-500 text-white px-3 py-1 rounded text-sm font-bold">📋 Missions</button>
+    <button onclick="showScreen('awards')"      class="bg-sky-500 text-white px-3 py-1 rounded text-sm font-bold">🎉 Awards</button>
+    <button onclick="toggleControls()" class="bg-gray-600 text-white px-3 py-1 rounded text-sm font-bold ml-auto">Hide Controls</button>
+    <a href="dashboard.html" class="bg-red-600 text-white px-3 py-1 rounded text-sm font-bold">Exit</a>
+  </div>
+
+  <!-- Screen: Leaderboard -->
+  <div id="screen-leaderboard" class="screen active min-h-screen flex-col items-center justify-center pt-16">
+    <div class="projector-screen">
+      <div class="text-6xl mb-4">🏆</div>
+      <h1 class="text-5xl font-black mb-2">BẢNG XẾP HẠNG</h1>
+      <p class="text-sky-300 text-xl mb-10">Sứa Khám Phá 2026B</p>
+      <div id="proj-lb-list" class="w-full max-w-2xl space-y-3"></div>
+    </div>
+  </div>
+
+  <!-- Screen: Teams -->
+  <div id="screen-teams" class="screen min-h-screen flex-col items-center justify-center pt-16">
+    <div class="projector-screen">
+      <div class="text-6xl mb-4">🚢</div>
+      <h1 class="text-5xl font-black mb-8">DANH SÁCH TEAM</h1>
+      <div id="proj-teams-grid" class="w-full max-w-5xl grid grid-cols-2 md:grid-cols-3 gap-5"></div>
+    </div>
+  </div>
+
+  <!-- Screen: Missions -->
+  <div id="screen-missions" class="screen min-h-screen flex-col items-center justify-center pt-16">
+    <div class="projector-screen">
+      <div class="text-6xl mb-4">🗺️</div>
+      <h1 class="text-5xl font-black mb-8">SAT OCEAN MAP</h1>
+      <div class="grid grid-cols-1 gap-3 w-full max-w-xl">
+        <div class="flex items-center gap-4 bg-white bg-opacity-10 rounded-2xl p-4"><span class="text-3xl">🤿</span><span class="text-xl font-bold">Check-in + Hồ Sơ Sứa</span><span class="ml-auto text-green-400 text-2xl">✅</span></div>
+        <div class="flex items-center gap-4 bg-white bg-opacity-10 rounded-2xl p-4"><span class="text-3xl">🐚</span><span class="text-xl font-bold">Archive Pearl Mission</span><span class="ml-auto text-2xl" id="pm-b02">⏳</span></div>
+        <div class="flex items-center gap-4 bg-white bg-opacity-10 rounded-2xl p-4"><span class="text-3xl">🗺️</span><span class="text-xl font-bold">SAT Ocean Map Quiz</span><span class="ml-auto text-2xl" id="pm-b03">⏳</span></div>
+        <div class="flex items-center gap-4 bg-white bg-opacity-10 rounded-2xl p-4"><span class="text-3xl">⚓</span><span class="text-xl font-bold">Meet Your Sea Captains</span><span class="ml-auto text-2xl" id="pm-b04">⏳</span></div>
+        <div class="flex items-center gap-4 bg-white bg-opacity-10 rounded-2xl p-4"><span class="text-3xl">🪸</span><span class="text-xl font-bold">Find Your Fellow Sứa</span><span class="ml-auto text-2xl" id="pm-b05">⏳</span></div>
+        <div class="flex items-center gap-4 bg-white bg-opacity-10 rounded-2xl p-4"><span class="text-3xl">🚢</span><span class="text-xl font-bold">Team Bonding Challenge</span><span class="ml-auto text-2xl" id="pm-b06">⏳</span></div>
+        <div class="flex items-center gap-4 bg-white bg-opacity-10 rounded-2xl p-4"><span class="text-3xl">🏆</span><span class="text-xl font-bold">Full Explorer</span><span class="ml-auto text-2xl" id="pm-b07">⏳</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Screen: Awards -->
+  <div id="screen-awards" class="screen min-h-screen flex-col items-center justify-center bg-ocean-gradient pt-16">
+    <div class="projector-screen">
+      <div class="text-8xl mb-6" style="animation:badgePop 1s infinite alternate">🏆</div>
+      <h1 class="text-6xl font-black mb-4" style="text-shadow:0 4px 24px rgba(0,180,216,0.5)">MISSION COMPLETED!</h1>
+      <p class="text-3xl text-sky-300 mb-4">Sứa Khám Phá 2026B</p>
+      <p class="text-xl text-foam-blue">Chúc mừng tất cả các Nhà Thám Hiểm! 🌊</p>
+    </div>
+  </div>
+
+  <script type="module">
+    import { auth } from '../js/firebase-config.js';
+    import { onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+    import { db } from '../js/firebase-config.js';
+    import { collection, getDocs, doc, getDoc } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+
+    onAuthStateChanged(auth, user => { if (!user) window.location.href = 'index.html'; });
+    window.doSignOut = async () => { await signOut(auth); window.location.href = 'index.html'; };
+
+    let controlsVisible = true;
+    window.toggleControls = function() {
+      controlsVisible = !controlsVisible;
+      document.getElementById('controls').style.display = controlsVisible ? 'flex' : 'none';
+    };
+
+    window.showScreen = async function(name) {
+      document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+      document.getElementById(`screen-${name}`).classList.add('active');
+      if (name === 'leaderboard') await loadLeaderboard();
+      if (name === 'teams')       await loadTeams();
+      if (name === 'missions')    await loadMissions();
+    };
+
+    async function loadLeaderboard() {
+      const snap = await getDocs(collection(db,'teams'));
+      const teams = snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.score||0)-(a.score||0));
+      const RANK = ['🥇','🥈','🥉'];
+      document.getElementById('proj-lb-list').innerHTML = teams.map((t,i)=>`
+        <div class="flex items-center gap-4 bg-white bg-opacity-10 rounded-2xl p-5 text-2xl font-black">
+          <span>${i<3?RANK[i]:`#${i+1}`}</span>
+          <span class="flex-1">${t.name}</span>
+          <span class="text-sky-300">${t.score||0} pts</span>
+        </div>`).join('');
+    }
+
+    async function loadTeams() {
+      const snap = await getDocs(collection(db,'teams'));
+      const teams = snap.docs.map(d=>({id:d.id,...d.data()}));
+      document.getElementById('proj-teams-grid').innerHTML = teams.map(t=>`
+        <div class="bg-white bg-opacity-10 rounded-2xl p-4" style="border-top:4px solid ${t.colorHex||'#00B4D8'}">
+          <p class="font-black text-xl mb-2">${t.name}</p>
+          ${(t.memberIds||[]).length} thành viên
+        </div>`).join('');
+    }
+
+    async function loadMissions() {
+      const settingsSnap = await getDoc(doc(db,'config','settings'));
+      const phase = settingsSnap.exists() ? settingsSnap.data().currentPhase : '';
+      const PHASE_ORDER = ['registration','archive-pearl','sat-quiz','bol','find-fellow','team-formation','bonding','completed'];
+      const phaseIdx = PHASE_ORDER.indexOf(phase);
+      const IDS = ['b02','b03','b04','b05','b06','b07'];
+      IDS.forEach((id,i) => {
+        const el = document.getElementById(`pm-${id}`);
+        if (el) el.textContent = phaseIdx > i+1 ? '✅' : phaseIdx === i+1 ? '🔄' : '⏳';
+      });
+    }
+
+    loadLeaderboard();
+    setInterval(loadLeaderboard, 15000);
+  </script>
+</body>
+</html>
