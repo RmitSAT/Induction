@@ -15,20 +15,23 @@
   <header class="top-header">
     <a href="dashboard.html" class="text-foam-blue font-bold text-sm">&larr; Home</a>
     <span class="text-white font-black">🪸 Find Your Fellow</span>
-    <div class="w-14"></div>
+    <button id="radar-header-btn" onclick="openConsentOrRadar()"
+      class="text-sky-blue font-bold text-sm flex items-center gap-1">
+      <span id="radar-dot-indicator" class="w-2 h-2 rounded-full bg-gray-400 inline-block"></span>
+      Sonar
+    </button>
   </header>
 
   <div class="page-content px-4 pb-10">
 
     <!-- Hero -->
-    <div class="bg-ocean-gradient rounded-2xl p-5 mb-5">
+    <div class="bg-ocean-gradient rounded-2xl p-5 mb-4">
       <div class="flex items-center justify-between">
         <div>
           <h1 class="text-white font-black text-xl">Find Your Fellow Sứa</h1>
           <p class="text-sky-blue text-sm mt-1">Khám phá 6/10 mảnh để nhận huy hiệu</p>
           <div class="mt-2 inline-block bg-sky-blue text-ocean-dark font-black px-3 py-0.5 rounded-full text-xs">+30 Points khi 6/10 ✅</div>
         </div>
-        <!-- Circular progress -->
         <div class="relative flex items-center justify-center">
           <svg width="72" height="72" class="circle-progress-svg">
             <circle class="circle-bg" cx="36" cy="36" r="30"/>
@@ -54,18 +57,95 @@
     <div id="rules-card" class="hidden card-ocean p-4 mb-4 text-sm text-ocean-dark">
       <p class="font-bold mb-1">📜 Luật chơi:</p>
       <ul class="space-y-1 text-gray-600">
-        <li>✅ Quét / nhập mã của thành viên khác để xác nhận mảnh ghép</li>
+        <li>✅ Quét / nhập mã hoặc dùng <strong>Sonar Radar</strong> tìm bạn gần đây</li>
         <li>🚫 Không quét mã của chính bạn</li>
-        <li>🔢 Mỗi người chỉ giúp bạn tối đa 2 mảnh</li>
+        <li>🔢 Mỗi người chỉ giúp tối đa 2 mảnh</li>
         <li>🎯 Đạt 6/10 mảnh → nhận huy hiệu Friendship Reef!</li>
       </ul>
     </div>
 
     <!-- Tile grid -->
-    <div id="tile-grid" class="tile-grid hidden"></div>
+    <div id="tile-grid" class="tile-grid hidden mb-5"></div>
+
+    <!-- ── SONAR RADAR PANEL ─────────────────────────────────── -->
+    <div id="radar-panel" class="hidden card p-5 mb-4">
+      <!-- Header row -->
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <h3 class="font-black text-ocean-dark flex items-center gap-2">
+            🌊 Sonar Radar
+            <span id="online-badge" class="text-xs font-bold bg-sky-blue text-white px-2 py-0.5 rounded-full hidden"></span>
+          </h3>
+          <p id="radar-status-text" class="text-xs text-gray-400 mt-0.5">Đang định vị...</p>
+        </div>
+        <div class="flex gap-2 items-center">
+          <button onclick="cycleRange()" id="range-btn" class="text-xs font-bold border border-ocean-mid text-ocean-mid rounded-full px-2 py-1">100m</button>
+          <button onclick="closeRadar()" class="text-gray-400 text-xl leading-none font-bold">&times;</button>
+        </div>
+      </div>
+
+      <!-- Canvas radar -->
+      <div class="radar-outer" id="radar-outer">
+        <canvas id="radar-canvas" width="280" height="280"></canvas>
+        <div class="radar-sweep-layer" id="radar-sweep"></div>
+        <div class="radar-dots-layer" id="radar-dots"></div>
+        <div class="radar-self-dot">🪼</div>
+      </div>
+
+      <!-- Legend -->
+      <div class="flex justify-between items-center mt-3 text-xs text-gray-400">
+        <span>Tap dot để chọn bạn</span>
+        <span>Hold để vẫy tay 🌊</span>
+      </div>
+
+      <!-- Pending code bar -->
+      <div id="pending-bar" class="hidden mt-3 bg-ocean-mid text-white rounded-xl p-3 text-sm font-bold flex items-center justify-between">
+        <span id="pending-bar-text">🎯 Đang chờ chọn mảnh...</span>
+        <button onclick="clearPending()" class="text-foam-blue ml-2">✕</button>
+      </div>
+    </div>
+    <!-- ─────────────────────────────────────────────────────── -->
+
+  </div><!-- end page-content -->
+
+  <!-- ══════════════════ CONSENT MODAL ══════════════════ -->
+  <div id="consent-modal" class="modal-overlay hidden">
+    <div class="consent-card">
+      <div class="consent-hero">
+        <div class="text-5xl mb-3">🌊</div>
+        <h2 class="text-white font-black text-xl mb-1">Bật Sonar Radar</h2>
+        <p class="text-foam-blue text-sm">Thấy Sứa xung quanh bạn theo thời gian thực!</p>
+      </div>
+      <div class="px-6 pt-5">
+        <p class="font-black text-ocean-dark mb-3">Ứng dụng sẽ chia sẻ:</p>
+        <div class="space-y-2 mb-5">
+          <div class="flex items-start gap-3 text-sm">
+            <span class="text-sky-blue font-black mt-0.5">📍</span>
+            <div><span class="font-bold text-ocean-dark">Vị trí GPS gần đúng</span><br>
+              <span class="text-gray-500">Hiển thị khoảng cách đến các Sứa khác — không lưu lịch sử</span></div>
+          </div>
+          <div class="flex items-start gap-3 text-sm">
+            <span class="text-sky-blue font-black mt-0.5">👤</span>
+            <div><span class="font-bold text-ocean-dark">Tên hiển thị</span><br>
+              <span class="text-gray-500">Chỉ tên của bạn, không có thông tin khác</span></div>
+          </div>
+          <div class="flex items-start gap-3 text-sm">
+            <span class="text-sky-blue font-black mt-0.5">🔒</span>
+            <div><span class="font-bold text-ocean-dark">Chỉ trong sự kiện này</span><br>
+              <span class="text-gray-500">Vị trí tự động xoá khi bạn rời trang</span></div>
+          </div>
+        </div>
+        <div class="bg-mist-blue rounded-xl p-3 mb-5 text-xs text-gray-500">
+          Dữ liệu chỉ hiển thị cho các thành viên SAT trong sự kiện hôm nay.
+          Không chia sẻ với bên thứ ba.
+        </div>
+        <button onclick="acceptRadar()" class="btn-primary mb-3">🌊 Bật Sonar Radar</button>
+        <button onclick="skipRadar()" class="w-full text-center text-gray-400 text-sm py-2 font-semibold">Bỏ qua, dùng nhập mã thủ công</button>
+      </div>
+    </div>
   </div>
 
-  <!-- Scan Modal -->
+  <!-- ══════════════════ SCAN MODAL ══════════════════ -->
   <div id="scan-modal" class="modal-overlay hidden">
     <div class="modal-sheet">
       <div class="flex justify-between items-center mb-4">
@@ -79,10 +159,11 @@
         <p class="text-xs text-sky-blue mt-2 font-bold">Tìm người trả lời TRUE cho câu này!</p>
       </div>
 
-      <!-- Scan mode toggle -->
+      <!-- Mode tabs -->
       <div class="flex gap-2 mb-4">
-        <button id="btn-scan-mode" onclick="setMode('scan')" class="flex-1 py-2 rounded-xl font-bold text-sm border-2 border-ocean-mid bg-ocean-mid text-white transition-all">📷 Quét QR</button>
-        <button id="btn-manual-mode" onclick="setMode('manual')" class="flex-1 py-2 rounded-xl font-bold text-sm border-2 border-foam-blue bg-white text-ocean-dark transition-all">⌨️ Nhập mã</button>
+        <button id="btn-scan-mode"   onclick="setMode('scan')"   class="flex-1 py-2 rounded-xl font-bold text-sm border-2 border-foam-blue bg-white text-ocean-dark transition-all">📷 QR</button>
+        <button id="btn-manual-mode" onclick="setMode('manual')" class="flex-1 py-2 rounded-xl font-bold text-sm border-2 border-ocean-mid bg-ocean-mid text-white transition-all">⌨️ Nhập mã</button>
+        <button id="btn-nearby-mode" onclick="setMode('nearby')" class="flex-1 py-2 rounded-xl font-bold text-sm border-2 border-foam-blue bg-white text-ocean-dark transition-all">🌊 Gần đây</button>
       </div>
 
       <!-- QR Scanner -->
@@ -98,6 +179,17 @@
           class="input-field code-input" placeholder="X4K9QR"
           oninput="this.value=this.value.toUpperCase().replace(/[^A-Z0-9]/g,'')">
         <button onclick="verifyManual()" class="btn-primary mt-3">✅ Xác Nhận</button>
+      </div>
+
+      <!-- Nearby list -->
+      <div id="nearby-wrap" class="hidden mb-4">
+        <div id="nearby-list"></div>
+        <div id="nearby-empty" class="hidden text-center py-6 text-gray-400 text-sm">
+          <p class="text-2xl mb-2">🌊</p>
+          <p class="font-bold">Chưa có Sứa nào gần bạn</p>
+          <p class="text-xs mt-1">Bật Sonar Radar để thấy người xung quanh</p>
+          <button onclick="openConsentOrRadar();closeModal()" class="btn-secondary mt-3" style="max-width:200px;margin:12px auto 0">Bật Sonar</button>
+        </div>
       </div>
 
       <!-- Result display -->
@@ -121,8 +213,9 @@
     import { requireAuth } from './js/auth.js';
     import { db } from './js/firebase-config.js';
     import {
-      doc, getDoc, getDocs, collection, query, where,
-      updateDoc, setDoc, serverTimestamp, runTransaction, arrayUnion
+      doc, getDoc, getDocs, collection, query, where, addDoc,
+      updateDoc, setDoc, deleteDoc, serverTimestamp,
+      runTransaction, arrayUnion, onSnapshot
     } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
     const session = requireAuth();
@@ -134,74 +227,117 @@
     let html5Scanner   = null;
     let fellowRequired = 6;
     let maxPerTarget   = 2;
-    const SESSION_SCANNED_KEY = 'sat_scanned_this_tile';
 
+    // ── Radar state ─────────────────────────────────────────────────────────
+    let radarActive      = false;
+    let myLat            = null;
+    let myLng            = null;
+    let radarRange       = 100;   // metres
+    let gpsWatchId       = null;
+    let locationsUnsub   = null;
+    let nearbyMembers    = [];    // [{id, name, accessCode, lat, lng, age, waving}]
+    let pendingCode      = null;  // code selected from radar, waiting for tile pick
+    let pendingName      = null;
+    let longPressTimer   = null;
+    let longPressActive  = false;
+
+    const RANGES       = [25, 50, 100, 200];
+    let   rangeIdx     = 2;       // default 100m
+    const STALE_MS     = 90_000; // 90 seconds
+
+    // ── Load ────────────────────────────────────────────────────────────────
     async function load() {
       const [memberSnap, stmtSnap, settingsSnap] = await Promise.all([
         getDoc(doc(db,'members',session.memberId)),
         getDocs(collection(db,'trueFalseStatements')),
         getDoc(doc(db,'config','settings'))
       ]);
-
-      member    = { id: memberSnap.id, ...memberSnap.data() };
+      member     = { id: memberSnap.id, ...memberSnap.data() };
       statements = stmtSnap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>a.order-b.order);
-      const s   = settingsSnap.exists() ? settingsSnap.data() : {};
+      const s    = settingsSnap.exists() ? settingsSnap.data() : {};
       fellowRequired = s.fellowTilesRequired || 6;
       maxPerTarget   = s.maxTilesPerTarget   || 2;
       unlockedTiles  = member.unlockedTiles  || [];
 
       document.getElementById('loading').classList.add('hidden');
       document.getElementById('rules-card').classList.remove('hidden');
-
       updateProgress();
       renderTiles();
       document.getElementById('tile-grid').classList.remove('hidden');
-
-      if (unlockedTiles.length >= fellowRequired) {
+      if (unlockedTiles.length >= fellowRequired)
         document.getElementById('badge-banner').classList.remove('hidden');
-      }
+
+      // Auto-restore radar if consent was already given
+      if (localStorage.getItem('sat_radar_consent') === 'true')
+        startRadar();
     }
 
+    // ── Progress + tiles ────────────────────────────────────────────────────
     function updateProgress() {
       const n = unlockedTiles.length;
       document.getElementById('progress-num').textContent = n;
-      const circ = document.getElementById('circle-fill');
       const circumference = 2 * Math.PI * 30;
-      circ.style.strokeDasharray  = circumference;
-      circ.style.strokeDashoffset = circumference * (1 - n/10);
+      const fill = document.getElementById('circle-fill');
+      fill.style.strokeDasharray  = circumference;
+      fill.style.strokeDashoffset = circumference * (1 - n/10);
     }
 
     function renderTiles() {
       if (statements.length === 0) {
-        document.getElementById('tile-grid').innerHTML = '<p class="col-span-2 text-center text-gray-500 py-8">Chưa có câu hỏi. Liên hệ BTC!</p>';
+        document.getElementById('tile-grid').innerHTML =
+          '<p class="col-span-2 text-center text-gray-500 py-8">Chưa có câu hỏi. Liên hệ BTC!</p>';
         return;
       }
       document.getElementById('tile-grid').innerHTML = statements.map((s,i) => {
-        const done     = unlockedTiles.includes(i);
-        const helperName = member.tileHelpers ? member.tileHelpers[i] : null;
+        const done    = unlockedTiles.includes(i);
+        const helper  = member.tileHelpers ? member.tileHelpers[i] : null;
+        const isPend  = !done && pendingCode !== null;
         return `
-          <div class="tile-card ${done ? 'tile-unlocked' : 'tile-locked'}" onclick="${done ? '' : `openModal(${i})`}">
+          <div class="tile-card ${done ? 'tile-unlocked' : 'tile-locked'} ${isPend ? 'radar-pending' : ''}"
+               onclick="${done ? '' : `pickTile(${i})`}">
             ${done
               ? `<div class="text-2xl">✅</div>
                  <p class="text-xs font-bold text-ocean-dark leading-tight">${s.statement}</p>
-                 ${helperName ? `<p class="text-xs text-ocean-teal">${helperName}</p>` : ''}`
-              : `<div class="text-2xl text-gray-300">🔒</div>
-                 <p class="text-xs font-bold text-gray-400">#${i+1}</p>
-                 <p class="text-xs text-gray-400">Chạm để tìm bạn</p>`
+                 ${helper ? `<p class="text-xs text-ocean-teal mt-1">via ${helper}</p>` : ''}`
+              : `<div class="text-2xl ${isPend ? 'animate-bounce' : 'text-gray-300'}">
+                   ${isPend ? '🎯' : '🔒'}</div>
+                 <p class="text-xs font-bold ${isPend ? 'text-ocean-mid' : 'text-gray-400'}">#${i+1}</p>
+                 <p class="text-xs ${isPend ? 'text-ocean-mid' : 'text-gray-400'}">
+                   ${isPend ? 'Tap để xác nhận' : 'Chạm để tìm bạn'}</p>`
             }
           </div>`;
       }).join('');
     }
 
+    // pickTile handles both normal tap and radar-pending tap
+    window.pickTile = function(i) {
+      if (pendingCode) {
+        // Radar-pending: auto-verify the selected person for this tile
+        activeTileIdx = i;
+        clearPending(false);
+        const modalStmt = statements[i] ? statements[i].statement : '';
+        document.getElementById('modal-tile-num').textContent   = i + 1;
+        document.getElementById('modal-statement').textContent  = modalStmt;
+        document.getElementById('verify-result').classList.add('hidden');
+        document.getElementById('scan-modal').classList.remove('hidden');
+        setMode('manual');
+        document.getElementById('manual-code').value = pendingCode;
+        verifyManual();
+      } else {
+        openModal(i);
+      }
+    };
+
+    // ── Modal ───────────────────────────────────────────────────────────────
     window.openModal = function(tileIdx) {
       activeTileIdx = tileIdx;
-      const stmt = statements[tileIdx];
-      document.getElementById('modal-tile-num').textContent = tileIdx + 1;
-      document.getElementById('modal-statement').textContent = stmt ? stmt.statement : '';
+      document.getElementById('modal-tile-num').textContent  = tileIdx + 1;
+      document.getElementById('modal-statement').textContent = statements[tileIdx]?.statement || '';
       document.getElementById('verify-result').classList.add('hidden');
       document.getElementById('manual-code').value = '';
       document.getElementById('scan-modal').classList.remove('hidden');
-      setMode('manual');
+      // Default to 'nearby' if radar is active, else 'manual'
+      setMode(radarActive && nearbyMembers.length > 0 ? 'nearby' : 'manual');
     };
 
     window.closeModal = function() {
@@ -210,29 +346,36 @@
     };
 
     window.setMode = function(mode) {
-      const isQR = mode === 'scan';
-      document.getElementById('scanner-wrap').classList.toggle('hidden', !isQR);
-      document.getElementById('manual-wrap').classList.toggle('hidden', isQR);
-      document.getElementById('btn-scan-mode').className   = `flex-1 py-2 rounded-xl font-bold text-sm border-2 ${isQR ? 'border-ocean-mid bg-ocean-mid text-white' : 'border-foam-blue bg-white text-ocean-dark'} transition-all`;
-      document.getElementById('btn-manual-mode').className = `flex-1 py-2 rounded-xl font-bold text-sm border-2 ${!isQR ? 'border-ocean-mid bg-ocean-mid text-white' : 'border-foam-blue bg-white text-ocean-dark'} transition-all`;
-      if (isQR) startScanner(); else stopScanner();
+      const modes = ['scan','manual','nearby'];
+      modes.forEach(m => {
+        const isActive = m === mode;
+        const btn = document.getElementById(`btn-${m}-mode`);
+        if (btn) btn.className = `flex-1 py-2 rounded-xl font-bold text-sm border-2 transition-all ` +
+          (isActive ? 'border-ocean-mid bg-ocean-mid text-white' : 'border-foam-blue bg-white text-ocean-dark');
+        document.getElementById(`${m}-wrap`).classList.toggle('hidden', !isActive);
+      });
+      if (mode === 'scan')   startScanner();
+      else                   stopScanner();
+      if (mode === 'nearby') renderNearbyList();
     };
 
+    // ── QR Scanner ──────────────────────────────────────────────────────────
     function startScanner() {
       if (scannerRunning) return;
       html5Scanner = new Html5Qrcode('qr-reader');
-      html5Scanner.start({ facingMode:'environment' }, { fps:10, qrbox:{width:200,height:200} },
-        code => { const c=code.trim().toUpperCase().slice(0,6); stopScanner(); verifyCode(c); },
+      html5Scanner.start(
+        { facingMode:'environment' }, { fps:10, qrbox:{width:200,height:200} },
+        code => { stopScanner(); verifyCode(code.trim().toUpperCase().slice(0,6)); },
         () => {}
-      ).then(()=>{ scannerRunning=true; }).catch(err=>{ showToast('Không mở được camera. Dùng nhập mã thủ công.','error'); setMode('manual'); });
+      ).then(()=>{ scannerRunning=true; })
+       .catch(()=>{ showToast('Không mở được camera. Dùng nhập mã.','error'); setMode('manual'); });
     }
 
     function stopScanner() {
       if (html5Scanner && scannerRunning) {
         html5Scanner.stop().catch(()=>{});
         html5Scanner.clear().catch(()=>{});
-        scannerRunning = false;
-        html5Scanner = null;
+        scannerRunning = false; html5Scanner = null;
       }
     }
 
@@ -242,122 +385,484 @@
       verifyCode(code);
     };
 
+    // ── Core verification ────────────────────────────────────────────────────
     async function verifyCode(code) {
       showVerifyResult('⏳','Đang kiểm tra...','','info');
-
       try {
-        // 1. Find target member
-        const q = query(collection(db,'members'), where('accessCode','==',code));
+        const q    = query(collection(db,'members'), where('accessCode','==',code));
         const snap = await getDocs(q);
-        if (snap.empty) { showVerifyResult('❌','Không tìm thấy mã này!','Kiểm tra lại và thử mã khác nhé.','error'); return; }
+        if (snap.empty) { showVerifyResult('❌','Không tìm thấy mã này!','Kiểm tra lại và thử mã khác.','error'); return; }
         const target = { id:snap.docs[0].id, ...snap.docs[0].data() };
 
-        // 2. No self-scan
-        if (target.id === session.memberId) { showVerifyResult('🚫','Không thể quét mã của chính bạn!','Hãy tìm người khác nhé.','error'); return; }
-
-        // 3. Tile already unlocked
-        if (unlockedTiles.includes(activeTileIdx)) { showVerifyResult('✅','Mảnh này đã mở rồi!','Chọn mảnh khác nhé.','success'); return; }
-
-        // 4. Check max tiles per target
-        const scanDoc = await getDoc(doc(db,'members',session.memberId,'fellowScans',target.id));
+        if (target.id === session.memberId) {
+          showVerifyResult('🚫','Không thể quét mã của chính bạn!','Hãy tìm người khác.','error'); return;
+        }
+        if (unlockedTiles.includes(activeTileIdx)) {
+          showVerifyResult('✅','Mảnh này đã mở rồi!','Chọn mảnh khác.','success'); return;
+        }
+        const scanDoc    = await getDoc(doc(db,'members',session.memberId,'fellowScans',target.id));
         const tilesHelped = scanDoc.exists() ? (scanDoc.data().tilesHelped||[]) : [];
         if (tilesHelped.length >= maxPerTarget) {
-          showVerifyResult('⚠️',`${target.name} đã giúp bạn ${maxPerTarget} mảnh!`,'Mỗi người chỉ giúp được tối đa '+maxPerTarget+' mảnh. Tìm người khác nhé.','error');
-          return;
+          showVerifyResult('⚠️',`${target.name} đã giúp bạn ${maxPerTarget} mảnh!`,
+            `Tối đa ${maxPerTarget} mảnh / người. Tìm người khác nhé.`,'error'); return;
         }
         if (tilesHelped.includes(activeTileIdx)) {
-          showVerifyResult('⚠️','Mảnh này đã được xác nhận bởi người này rồi!','Thử mảnh khác.','error');
-          return;
+          showVerifyResult('⚠️','Mảnh này đã được xác nhận bởi người này!','Thử mảnh khác.','error'); return;
         }
 
-        // 5. Check target's T/F answer
-        const stmtId = statements[activeTileIdx]?.id;
-        const targetAnswers = target.trueFalseAnswers || {};
-        const targetAnswer  = targetAnswers[stmtId];
-
+        const stmtId      = statements[activeTileIdx]?.id;
+        const targetAnswer = (target.trueFalseAnswers||{})[stmtId];
         if (targetAnswer !== true) {
           showVerifyResult('❌',`${target.name} trả lời FALSE cho câu này!`,'Thử người khác trả lời TRUE nhé.','error');
-          // Log failed scan
-          await logScan(target.id, false);
-          return;
+          await logScan(target.id, false); return;
         }
 
-        // 6. SUCCESS — unlock tile
-        const newUnlocked = [...unlockedTiles, activeTileIdx];
-        const tileHelpers = member.tileHelpers || {};
-        tileHelpers[activeTileIdx] = target.name;
+        // ✅ SUCCESS
+        const newUnlocked  = [...unlockedTiles, activeTileIdx];
+        const tileHelpers  = { ...(member.tileHelpers||{}), [activeTileIdx]: target.name };
 
-        await runTransaction(db, async (tx) => {
-          const memberRef = doc(db,'members',session.memberId);
-          const scanRef   = doc(db,'members',session.memberId,'fellowScans',target.id);
-          tx.update(memberRef, { unlockedTiles: arrayUnion(activeTileIdx), fellowProgress: newUnlocked.length, tileHelpers });
-          tx.set(scanRef, { tilesHelped: arrayUnion(activeTileIdx), lastScannedAt: serverTimestamp() }, { merge: true });
+        await runTransaction(db, async tx => {
+          const mRef = doc(db,'members',session.memberId);
+          const sRef = doc(db,'members',session.memberId,'fellowScans',target.id);
+          tx.update(mRef, { unlockedTiles: arrayUnion(activeTileIdx), fellowProgress: newUnlocked.length, tileHelpers });
+          tx.set(sRef,   { tilesHelped: arrayUnion(activeTileIdx), lastScannedAt: serverTimestamp() }, { merge:true });
         });
 
         await logScan(target.id, true);
-        unlockedTiles = newUnlocked;
-        member.tileHelpers = tileHelpers;
+        unlockedTiles         = newUnlocked;
+        member.tileHelpers    = tileHelpers;
 
         showVerifyResult('🎉',`${target.name} nói TRUE! Mảnh #${activeTileIdx+1} đã mở!`,'','success');
         updateProgress();
         renderTiles();
+        spawnConfetti();
+        if (newUnlocked.length >= fellowRequired) await unlockFriendshipBadge();
 
-        // Check badge threshold
-        if (newUnlocked.length >= fellowRequired) {
-          await unlockFriendshipBadge();
-        }
-
-      } catch (err) {
+      } catch(err) {
         showVerifyResult('⚠️','Lỗi kết nối','Thử lại nhé!','error');
       }
     }
 
     async function unlockFriendshipBadge() {
       try {
-        const badgeSnap = await getDoc(doc(db,'members',session.memberId,'badges','B05'));
-        if (badgeSnap.exists() && badgeSnap.data().unlocked) return;
+        const b = await getDoc(doc(db,'members',session.memberId,'badges','B05'));
+        if (b.exists() && b.data().unlocked) return;
         const ms = await getDoc(doc(db,'members',session.memberId));
-        await updateDoc(doc(db,'members',session.memberId), { points: (ms.data().points||0)+30 });
-        await updateDoc(doc(db,'members',session.memberId,'badges','B05'), { unlocked:true, unlockedAt:serverTimestamp() });
+        await updateDoc(doc(db,'members',session.memberId), { points:(ms.data().points||0)+30 });
+        await setDoc(doc(db,'members',session.memberId,'badges','B05'),
+          { unlocked:true, unlockedAt:serverTimestamp(), adminOverride:false, points:30 }, { merge:true });
         document.getElementById('badge-banner').classList.remove('hidden');
-        showToast('🪸 Friendship Reef Badge đã mở khoá! +30 điểm!','success');
-        // Check Full Explorer
+        showToast('🪸 Friendship Reef Badge mở khoá! +30 điểm!','success');
         await checkFullExplorer();
       } catch {}
     }
 
     async function checkFullExplorer() {
       try {
-        const ids = ['B01','B02','B03','B04','B05','B06'];
-        const snaps = await Promise.all(ids.map(id=>getDoc(doc(db,'members',session.memberId,'badges',id))));
+        const snaps = await Promise.all(['B01','B02','B03','B04','B05','B06'].map(id =>
+          getDoc(doc(db,'members',session.memberId,'badges',id))));
         if (snaps.every(s=>s.exists()&&s.data().unlocked)) {
-          await updateDoc(doc(db,'members',session.memberId,'badges','B07'),{unlocked:true,unlockedAt:serverTimestamp()});
+          await setDoc(doc(db,'members',session.memberId,'badges','B07'),
+            { unlocked:true, unlockedAt:serverTimestamp(), adminOverride:false, points:50 }, { merge:true });
           const ms = await getDoc(doc(db,'members',session.memberId));
           await updateDoc(doc(db,'members',session.memberId),{points:(ms.data().points||0)+50});
+          showToast('🏆 Full Explorer Badge! +50 điểm! Bạn hoàn thành tất cả!','success');
         }
       } catch {}
     }
 
     async function logScan(targetId, result) {
-      try {
-        const { addDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
-        await addDoc(collection(db,'scanLogs'), { scannerId:session.memberId, targetId, tileIndex:activeTileIdx, result, timestamp:serverTimestamp() });
+      try { await addDoc(collection(db,'scanLogs'),
+        { scannerId:session.memberId, targetId, tileIndex:activeTileIdx, result, timestamp:serverTimestamp() });
       } catch {}
     }
 
-    function showVerifyResult(icon, msg, sub, type) {
+    // ── Radar ────────────────────────────────────────────────────────────────
+
+    window.openConsentOrRadar = function() {
+      if (localStorage.getItem('sat_radar_consent') === 'true') {
+        radarActive ? closeRadar() : startRadar();
+      } else {
+        document.getElementById('consent-modal').classList.remove('hidden');
+      }
+    };
+
+    window.acceptRadar = function() {
+      localStorage.setItem('sat_radar_consent','true');
+      document.getElementById('consent-modal').classList.add('hidden');
+      startRadar();
+    };
+
+    window.skipRadar = function() {
+      document.getElementById('consent-modal').classList.add('hidden');
+    };
+
+    function startRadar() {
+      document.getElementById('radar-panel').classList.remove('hidden');
+      radarActive = true;
+      drawRadarGrid();
+      updateRadarHeaderBtn(true);
+      setRadarStatus('Đang định vị GPS...');
+
+      // Start GPS
+      if ('geolocation' in navigator) {
+        gpsWatchId = navigator.geolocation.watchPosition(
+          pos => {
+            myLat = pos.coords.latitude;
+            myLng = pos.coords.longitude;
+            writeMyLocation();
+            setRadarStatus(`GPS đang hoạt động · ${RANGES[rangeIdx]}m`);
+          },
+          err => {
+            setRadarStatus('GPS không khả dụng — đang hiển thị danh sách');
+            myLat = null; myLng = null;
+          },
+          { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 }
+        );
+      } else {
+        setRadarStatus('Thiết bị không hỗ trợ GPS');
+      }
+
+      // Start Firestore listener
+      locationsUnsub = onSnapshot(collection(db,'memberLocations'), snapshot => {
+        const now = Date.now();
+        nearbyMembers = snapshot.docs
+          .filter(d => d.id !== session.memberId)
+          .map(d => {
+            const data = d.data();
+            const age  = now - (data.updatedAt?.toMillis() || 0);
+            return { id:d.id, ...data, age };
+          })
+          .filter(m => m.active && m.age < STALE_MS);
+
+        renderRadarDots();
+        updateOnlineBadge();
+
+        // Check for incoming waves
+        const myDoc = snapshot.docs.find(d => d.id === session.memberId);
+        if (myDoc) {
+          const w = myDoc.data().pendingWave;
+          if (w && w.at && (now - w.at.toMillis()) < 8000) {
+            showWaveNotification(w.fromName, w.fromId);
+            // Clear it
+            updateDoc(doc(db,'memberLocations',session.memberId), { pendingWave: null }).catch(()=>{});
+          }
+        }
+      });
+    }
+
+    function closeRadar() {
+      document.getElementById('radar-panel').classList.add('hidden');
+      radarActive = false;
+      updateRadarHeaderBtn(false);
+      if (gpsWatchId !== null) { navigator.geolocation.clearWatch(gpsWatchId); gpsWatchId = null; }
+      if (locationsUnsub)      { locationsUnsub(); locationsUnsub = null; }
+      setMyLocationInactive();
+    }
+
+    async function writeMyLocation() {
+      if (!myLat) return;
+      try {
+        await setDoc(doc(db,'memberLocations',session.memberId), {
+          name:       member.name,
+          accessCode: member.accessCode,
+          lat:        myLat,
+          lng:        myLng,
+          active:     true,
+          updatedAt:  serverTimestamp()
+        });
+      } catch {}
+    }
+
+    function setMyLocationInactive() {
+      try { updateDoc(doc(db,'memberLocations',session.memberId), { active:false, updatedAt:serverTimestamp() }); } catch {}
+    }
+
+    // ── Draw radar grid on canvas (once) ────────────────────────────────────
+    function drawRadarGrid() {
+      const canvas = document.getElementById('radar-canvas');
+      const ctx    = canvas.getContext('2d');
+      const W = canvas.width, H = canvas.height;
+      const cx = W/2, cy = H/2, R = Math.min(cx,cy) - 2;
+
+      ctx.clearRect(0, 0, W, H);
+
+      // Deep ocean background
+      const bg = ctx.createRadialGradient(cx,cy,0, cx,cy,R);
+      bg.addColorStop(0,'#0a1628'); bg.addColorStop(1,'#010815');
+      ctx.fillStyle = bg;
+      ctx.beginPath(); ctx.arc(cx,cy,R,0,2*Math.PI); ctx.fill();
+
+      // Concentric rings
+      [0.25,0.5,0.75,1.0].forEach(ratio => {
+        ctx.strokeStyle = `rgba(0,180,216,${ratio===1?0.35:0.2})`;
+        ctx.lineWidth = ratio===1 ? 1.5 : 1;
+        ctx.beginPath(); ctx.arc(cx,cy,R*ratio,0,2*Math.PI); ctx.stroke();
+      });
+
+      // Cross hairs
+      ctx.strokeStyle = 'rgba(0,180,216,0.15)';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4,6]);
+      ctx.beginPath(); ctx.moveTo(cx,cy-R); ctx.lineTo(cx,cy+R); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(cx-R,cy); ctx.lineTo(cx+R,cy); ctx.stroke();
+      // Diagonals
+      const d = R * Math.SQRT1_2;
+      ctx.beginPath(); ctx.moveTo(cx-d,cy-d); ctx.lineTo(cx+d,cy+d); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(cx+d,cy-d); ctx.lineTo(cx-d,cy+d); ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Compass labels
+      ctx.fillStyle = 'rgba(173,232,244,0.5)';
+      ctx.font = 'bold 9px Nunito, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('N', cx, cy-R+10);
+      ctx.fillText('S', cx, cy+R-10);
+      ctx.fillText('W', cx-R+10, cy);
+      ctx.fillText('E', cx+R-10, cy);
+
+      // Range label
+      ctx.fillStyle = 'rgba(0,180,216,0.4)';
+      ctx.font = '8px Nunito, sans-serif';
+      ctx.fillText(`${Math.round(RANGES[rangeIdx]*0.75)}m`, cx+R*0.75+4, cy-4);
+      ctx.fillText(`${Math.round(RANGES[rangeIdx]*0.5)}m`,  cx+R*0.5+4,  cy-4);
+      ctx.fillText(`${Math.round(RANGES[rangeIdx]*0.25)}m`, cx+R*0.25+4, cy-4);
+    }
+
+    // ── Render member dots ───────────────────────────────────────────────────
+    function renderRadarDots() {
+      const container = document.getElementById('radar-dots');
+      container.innerHTML = '';
+
+      const canvas = document.getElementById('radar-canvas');
+      const R = canvas.width / 2;
+
+      nearbyMembers.forEach(m => {
+        const dot = document.createElement('div');
+        dot.className = 'radar-member' + (m.waving ? ' waving' : '') + (pendingCode===m.accessCode ? ' pending' : '');
+        dot.dataset.code = m.accessCode;
+        dot.dataset.id   = m.id;
+
+        if (myLat && m.lat) {
+          const dist  = haversine(myLat, myLng, m.lat, m.lng);
+          const bear  = bearing(myLat, myLng, m.lat, m.lng);
+          const frac  = Math.min(dist / RANGES[rangeIdx], 0.93);
+          const xPct  = 50 + frac * 47 * Math.sin(bear * Math.PI/180);
+          const yPct  = 50 - frac * 47 * Math.cos(bear * Math.PI/180);
+          dot.style.left = xPct + '%';
+          dot.style.top  = yPct + '%';
+        } else {
+          // No GPS — scatter dots evenly around edge
+          const angle = (nearbyMembers.indexOf(m) / nearbyMembers.length) * 2 * Math.PI;
+          dot.style.left = (50 + 40 * Math.sin(angle)) + '%';
+          dot.style.top  = (50 - 40 * Math.cos(angle)) + '%';
+        }
+
+        dot.innerHTML = `<div class="radar-member-dot"></div>
+          <span class="radar-member-name">${m.name.split(' ').pop()}</span>`;
+
+        // Single tap → select for verification
+        let lpActive = false, lpTimer = null;
+        dot.addEventListener('touchstart', e => {
+          lpActive = false;
+          lpTimer = setTimeout(() => { lpActive = true; sendWave(m.id, m.name.split(' ').pop()); }, 650);
+        }, { passive: true });
+        dot.addEventListener('touchend', () => clearTimeout(lpTimer));
+        dot.addEventListener('touchmove', () => clearTimeout(lpTimer));
+        dot.addEventListener('click', () => { if (!lpActive) selectFromRadar(m.accessCode, m.name.split(' ').pop()); });
+
+        container.appendChild(dot);
+      });
+    }
+
+    // ── Radar interaction ────────────────────────────────────────────────────
+
+    function selectFromRadar(code, name) {
+      if (activeTileIdx !== null && !document.getElementById('scan-modal').classList.contains('hidden')) {
+        // Scan modal is open — fill code + verify
+        document.getElementById('manual-code').value = code;
+        setMode('manual');
+        verifyManual();
+      } else {
+        // No active tile — set pending + highlight tiles
+        pendingCode = code;
+        pendingName = name;
+        renderTiles();
+        document.getElementById('pending-bar').classList.remove('hidden');
+        document.getElementById('pending-bar-text').textContent = `🎯 Chọn mảnh để xác nhận với ${name}`;
+        showToast(`🎯 Tap mảnh nào để xác nhận với ${name}!`, 'info');
+      }
+    }
+
+    window.clearPending = function(reRender=true) {
+      pendingCode = null; pendingName = null;
+      document.getElementById('pending-bar').classList.add('hidden');
+      if (reRender) renderTiles();
+    };
+
+    async function sendWave(targetId, targetName) {
+      if (!member) return;
+      try {
+        await updateDoc(doc(db,'memberLocations',targetId), {
+          pendingWave: { fromName: member.name.split(' ').pop(), fromId: session.memberId, at: serverTimestamp() }
+        });
+        showToast(`🌊 Bạn vừa vẫy tay chào ${targetName}!`, 'success');
+      } catch {
+        showToast('Không thể vẫy — họ chưa bật Sonar', 'error');
+      }
+    }
+
+    function showWaveNotification(fromName, fromId) {
+      const c = document.getElementById('toast-container');
+      const t = document.createElement('div');
+      t.className = 'wave-toast';
+      t.innerHTML = `🌊 <strong>${fromName}</strong> đang vẫy tay chào bạn gần đây!<br>
+        <span style="font-size:11px;opacity:0.85">Tap để mở radar và tìm họ</span>`;
+      t.onclick = () => {
+        openConsentOrRadar();
+        t.remove();
+      };
+      c.appendChild(t);
+      setTimeout(() => t.remove(), 6000);
+    }
+
+    window.cycleRange = function() {
+      rangeIdx = (rangeIdx + 1) % RANGES.length;
+      radarRange = RANGES[rangeIdx];
+      document.getElementById('range-btn').textContent = RANGES[rangeIdx] + 'm';
+      setRadarStatus(`GPS đang hoạt động · ${RANGES[rangeIdx]}m`);
+      drawRadarGrid();
+      renderRadarDots();
+    };
+
+    function updateOnlineBadge() {
+      const badge = document.getElementById('online-badge');
+      if (nearbyMembers.length > 0) {
+        badge.textContent = nearbyMembers.length + ' online';
+        badge.classList.remove('hidden');
+      } else {
+        badge.classList.add('hidden');
+      }
+      const dot = document.getElementById('radar-dot-indicator');
+      dot.className = `w-2 h-2 rounded-full inline-block ${nearbyMembers.length > 0 ? 'bg-sky-blue' : 'bg-gray-400'}`;
+    }
+
+    function setRadarStatus(text) {
+      const el = document.getElementById('radar-status-text');
+      if (el) el.textContent = text;
+    }
+
+    function updateRadarHeaderBtn(active) {
+      const btn = document.getElementById('radar-header-btn');
+      if (active) {
+        btn.classList.add('text-sky-blue');
+        btn.classList.remove('text-gray-400');
+      }
+      const dot = document.getElementById('radar-dot-indicator');
+      dot.className = `w-2 h-2 rounded-full inline-block ${active ? 'bg-sky-blue' : 'bg-gray-400'}`;
+    }
+
+    // ── Nearby list (in modal) ───────────────────────────────────────────────
+    function renderNearbyList() {
+      const list  = document.getElementById('nearby-list');
+      const empty = document.getElementById('nearby-empty');
+      if (nearbyMembers.length === 0) {
+        list.innerHTML = ''; empty.classList.remove('hidden'); return;
+      }
+      empty.classList.add('hidden');
+
+      const sorted = [...nearbyMembers].sort((a,b) => {
+        if (myLat && a.lat && b.lat)
+          return haversine(myLat,myLng,a.lat,a.lng) - haversine(myLat,myLng,b.lat,b.lng);
+        return a.age - b.age;
+      });
+
+      list.innerHTML = sorted.map(m => {
+        const dist = myLat && m.lat ? `~${Math.round(haversine(myLat,myLng,m.lat,m.lng))}m` : 'Gần đây';
+        const sec  = Math.round(m.age/1000);
+        return `<div class="nearby-item mb-2" onclick="verifyFromNearby('${m.accessCode}','${m.name.split(' ').pop()}')">
+          <div class="nearby-pulse"></div>
+          <div class="flex-1 min-w-0">
+            <p class="font-bold text-ocean-dark text-sm truncate">${m.name}</p>
+            <p class="text-xs text-gray-400">${dist} · ${sec < 60 ? sec+'s trước' : Math.round(sec/60)+'m trước'}</p>
+          </div>
+          <button class="text-ocean-mid font-bold text-xs border border-ocean-mid rounded-lg px-2 py-1 flex-shrink-0">Chọn</button>
+        </div>`;
+      }).join('');
+    }
+
+    window.verifyFromNearby = function(code, name) {
+      document.getElementById('manual-code').value = code;
+      setMode('manual');
+      verifyManual();
+    };
+
+    // ── Geo helpers ──────────────────────────────────────────────────────────
+    function haversine(lat1,lon1,lat2,lon2) {
+      const R=6371000, φ1=lat1*Math.PI/180, φ2=lat2*Math.PI/180;
+      const Δφ=(lat2-lat1)*Math.PI/180, Δλ=(lon2-lon1)*Math.PI/180;
+      const a=Math.sin(Δφ/2)**2+Math.cos(φ1)*Math.cos(φ2)*Math.sin(Δλ/2)**2;
+      return 2*R*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+    }
+    function bearing(lat1,lon1,lat2,lon2) {
+      const φ1=lat1*Math.PI/180, φ2=lat2*Math.PI/180, Δλ=(lon2-lon1)*Math.PI/180;
+      const y=Math.sin(Δλ)*Math.cos(φ2);
+      const x=Math.cos(φ1)*Math.sin(φ2)-Math.sin(φ1)*Math.cos(φ2)*Math.cos(Δλ);
+      return (Math.atan2(y,x)*180/Math.PI+360)%360;
+    }
+
+    // ── Confetti burst ───────────────────────────────────────────────────────
+    function spawnConfetti() {
+      const colors = ['#00B4D8','#0077B6','#ADE8F4','#CAF0F8','#F59E0B'];
+      for (let i=0; i<18; i++) {
+        const p = document.createElement('div');
+        p.className = 'confetti-piece';
+        p.style.cssText = `left:${30+Math.random()*40}%;top:40%;background:${colors[i%colors.length]};
+          animation-delay:${Math.random()*0.3}s;animation-duration:${0.9+Math.random()*0.4}s;
+          transform:rotate(${Math.random()*360}deg)`;
+        document.body.appendChild(p);
+        setTimeout(() => p.remove(), 1400);
+      }
+    }
+
+    // ── Helpers ──────────────────────────────────────────────────────────────
+    function showVerifyResult(icon,msg,sub,type) {
       const el = document.getElementById('verify-result');
-      el.className = `rounded-xl p-4 text-center mb-3 ${type==='success'?'bg-green-50 border border-green-200':type==='error'?'bg-red-50 border border-red-200':'bg-mist-blue border border-foam-blue'}`;
+      el.className = `rounded-xl p-4 text-center mb-3 ${
+        type==='success' ? 'bg-green-50 border border-green-200' :
+        type==='error'   ? 'bg-red-50 border border-red-200' :
+        'bg-mist-blue border border-foam-blue'}`;
       document.getElementById('result-icon').textContent = icon;
       document.getElementById('result-msg').textContent  = msg;
       document.getElementById('result-sub').textContent  = sub;
       el.classList.remove('hidden');
     }
 
-    function showToast(msg,type='info'){const c=document.getElementById('toast-container');const t=document.createElement('div');t.className=`toast toast-${type}`;t.textContent=msg;c.appendChild(t);setTimeout(()=>t.classList.add('show'),10);setTimeout(()=>{t.classList.remove('show');setTimeout(()=>t.remove(),300);},4000);}
+    function showToast(msg,type='info') {
+      const c=document.getElementById('toast-container');
+      const t=document.createElement('div');
+      t.className=`toast toast-${type}`;
+      t.textContent=msg;
+      c.appendChild(t);
+      setTimeout(()=>t.classList.add('show'),10);
+      setTimeout(()=>{t.classList.remove('show');setTimeout(()=>t.remove(),300);},4000);
+    }
 
-    // Close modal on overlay click
-    document.getElementById('scan-modal').addEventListener('click', e => { if(e.target===e.currentTarget) closeModal(); });
+    // ── Cleanup on leave ─────────────────────────────────────────────────────
+    window.addEventListener('beforeunload', () => {
+      if (radarActive) setMyLocationInactive();
+    });
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden && radarActive) setMyLocationInactive();
+      else if (!document.hidden && radarActive) writeMyLocation();
+    });
+
+    // ── Init ─────────────────────────────────────────────────────────────────
+    document.getElementById('scan-modal').addEventListener('click',
+      e => { if(e.target===e.currentTarget) closeModal(); });
+    document.getElementById('consent-modal').addEventListener('click',
+      e => { if(e.target===e.currentTarget) skipRadar(); });
 
     load();
   </script>

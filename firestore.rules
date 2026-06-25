@@ -74,5 +74,11 @@ service cloud.firestore {
       allow read:   if isAdmin();
       allow create: if true;
     }
+
+    // ── Sonar Radar locations (ephemeral, event-only) ──────────────────────
+    match /memberLocations/{memberId} {
+      allow read:  if true;
+      allow write: if true;
+    }
   }
 }

@@ -419,9 +419,130 @@ body {
 }
 .badge-pop { animation: badgePop 0.5s cubic-bezier(.36,.07,.19,.97) forwards; }
 
+/* ── Sonar Radar ─────────────────────────────────────────────────────────── */
+.radar-outer {
+  width: 280px; height: 280px;
+  margin: 0 auto;
+  position: relative;
+  border-radius: 50%;
+  overflow: hidden;
+  box-shadow: 0 0 40px rgba(0,180,216,0.25), 0 0 80px rgba(0,180,216,0.08);
+}
+.radar-outer canvas { position: absolute; inset: 0; border-radius: 50%; }
+.radar-sweep-layer {
+  position: absolute; inset: 0;
+  border-radius: 50%;
+  pointer-events: none;
+  animation: radar-spin 3s linear infinite;
+  background: conic-gradient(
+    from 0deg,
+    rgba(0,220,240,0.95) 0deg 5deg,
+    rgba(0,200,230,0.55) 5deg 30deg,
+    rgba(0,150,199,0.12) 30deg 90deg,
+    transparent 90deg 360deg
+  );
+}
+@keyframes radar-spin { to { transform: rotate(360deg); } }
+.radar-dots-layer { position: absolute; inset: 0; border-radius: 50%; pointer-events: auto; }
+.radar-self-dot {
+  position: absolute; left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 22px; pointer-events: none; z-index: 20;
+  animation: self-glow 2s ease-in-out infinite;
+}
+@keyframes self-glow {
+  0%, 100% { filter: drop-shadow(0 0 6px rgba(0,220,240,0.8)); }
+  50% { filter: drop-shadow(0 0 16px rgba(0,220,240,1)); }
+}
+.radar-member {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  cursor: pointer; z-index: 15;
+  touch-action: none;
+}
+.radar-member-dot {
+  width: 12px; height: 12px;
+  background: #00B4D8;
+  border-radius: 50%;
+  box-shadow: 0 0 8px rgba(0,180,216,0.9);
+  position: relative; transition: background 0.3s;
+}
+.radar-member-dot::before {
+  content: '';
+  position: absolute; inset: -5px;
+  border: 1.5px solid rgba(0,180,216,0.5);
+  border-radius: 50%;
+  animation: radar-ping 1.6s ease-out infinite;
+}
+@keyframes radar-ping {
+  0%   { transform: scale(1); opacity: 0.8; }
+  100% { transform: scale(2.6); opacity: 0; }
+}
+.radar-member-name {
+  position: absolute; left: 16px; top: -5px;
+  font-size: 9px; font-weight: 800; color: #ADE8F4;
+  white-space: nowrap; pointer-events: none;
+  text-shadow: 0 1px 4px #010815, 0 0 8px #010815;
+}
+.radar-member.waving .radar-member-dot { background: #F59E0B; box-shadow: 0 0 12px rgba(245,158,11,0.9); }
+.radar-member.waving .radar-member-dot::before { border-color: rgba(245,158,11,0.5); }
+.radar-member.pending .radar-member-dot { background: #10B981; box-shadow: 0 0 10px rgba(16,185,129,0.9); }
+
+/* Consent modal */
+.consent-card {
+  background: #fff;
+  border-radius: 24px 24px 0 0;
+  width: 100%; max-width: 480px;
+  padding: 0 0 calc(32px + env(safe-area-inset-bottom));
+  max-height: 92vh; overflow-y: auto;
+}
+.consent-hero {
+  background: linear-gradient(160deg, #020826, #03045E 50%, #023E8A);
+  padding: 32px 24px 24px;
+  text-align: center;
+  border-radius: 24px 24px 0 0;
+}
+
+/* Nearby list items */
+.nearby-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1.5px solid #ADE8F4;
+  background: #F8FBFF;
+  cursor: pointer;
+  transition: all 0.2s;
+  -webkit-tap-highlight-color: transparent;
+}
+.nearby-item:active { background: #CAF0F8; border-color: #00B4D8; transform: scale(0.98); }
+.nearby-pulse {
+  width: 10px; height: 10px;
+  background: #00B4D8; border-radius: 50%;
+  flex-shrink: 0;
+  animation: np-pulse 1.4s ease infinite;
+}
+@keyframes np-pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.5;transform:scale(0.75)} }
+
+/* Tile highlight when pending radar code */
+.tile-card.radar-pending { box-shadow: 0 0 0 3px #00B4D8, 0 0 16px rgba(0,180,216,0.4); animation: tile-pulse-border 1s ease infinite; }
+@keyframes tile-pulse-border {
+  0%,100% { box-shadow: 0 0 0 3px #00B4D8, 0 0 16px rgba(0,180,216,0.3); }
+  50%     { box-shadow: 0 0 0 4px #00B4D8, 0 0 24px rgba(0,180,216,0.6); }
+}
+
+/* Wave toast */
+.wave-toast {
+  background: linear-gradient(90deg, #0077B6, #00B4D8);
+  color: #fff; font-weight: 800;
+  padding: 14px 18px; border-radius: 14px;
+  box-shadow: 0 4px 20px rgba(0,119,182,0.4);
+  cursor: pointer;
+}
+
 /* ── Responsive overrides ── */
 @media (min-width: 640px) {
   .tile-grid { grid-template-columns: repeat(5, 1fr); }
   .modal-overlay { align-items: center; }
   .modal-sheet { border-radius: 24px; margin: 20px; }
+  .radar-outer { width: 320px; height: 320px; }
 }
