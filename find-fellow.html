@@ -481,13 +481,36 @@
 
     const session = requireAuth();
     let statements    = [];
+    let displayOrder  = []; // shuffled visual order — maps visual slot → original statement index
     let member        = null;
     let unlockedTiles = [];
-    let activeTileIdx = null;
+    let activeTileIdx = null; // always the ORIGINAL statement index, not visual position
     let scannerRunning = false;
     let html5Scanner   = null;
     let fellowRequired = 6;
     let maxPerTarget   = 2;
+
+    // ── Per-member deterministic shuffle ─────────────────────────────────────
+    // Converts member ID string to a stable 32-bit seed
+    function strToSeed(str) {
+      let h = 2166136261 >>> 0;
+      for (let i = 0; i < str.length; i++) {
+        h ^= str.charCodeAt(i);
+        h = Math.imul(h, 16777619) >>> 0;
+      }
+      return h;
+    }
+    // Fisher-Yates shuffle driven by a seeded LCG
+    function seededShuffle(arr, seed) {
+      let s = seed >>> 0;
+      const next = () => { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; return s / 0x100000000; };
+      const out = [...arr];
+      for (let i = out.length - 1; i > 0; i--) {
+        const j = Math.floor(next() * (i + 1));
+        [out[i], out[j]] = [out[j], out[i]];
+      }
+      return out;
+    }
 
     // ── Radar state ──────────────────────────────────────────────────────────
     let radarActive    = false;
@@ -519,6 +542,12 @@
       fellowRequired = cfg.fellowTilesRequired || 6;
       maxPerTarget   = cfg.maxTilesPerTarget   || 2;
       unlockedTiles  = member.unlockedTiles    || [];
+
+      // Build this member's unique card order (deterministic from their ID)
+      displayOrder = seededShuffle(
+        Array.from({ length: statements.length }, (_, i) => i),
+        strToSeed(session.memberId)
+      );
 
       document.getElementById('loading').classList.add('hidden');
 
@@ -557,44 +586,51 @@
         return;
       }
       const isPend = pendingCode !== null;
-      document.getElementById('tile-grid').innerHTML = statements.map((s,i) => {
-        const done   = unlockedTiles.includes(i);
-        const helper = member.tileHelpers ? member.tileHelpers[i] : null;
+      // Iterate displayOrder so each member sees a different visual arrangement.
+      // oi = original statement index (used for validation / DB storage).
+      // vi = visual slot number (0-based), shown as #1 … #10 on locked tiles.
+      document.getElementById('tile-grid').innerHTML = displayOrder.map((oi, vi) => {
+        const s      = statements[oi];
+        const done   = unlockedTiles.includes(oi);
+        const helper = member.tileHelpers ? member.tileHelpers[oi] : null;
         return `<div class="tile-card ${done?'tile-unlocked':'tile-locked'} ${!done&&isPend?'radar-pending':''}"
-                     onclick="${done?'':'pickTile('+i+')'}">
+                     onclick="${done?'':'pickTile('+oi+')'}">
           ${done
             ? `<div class="text-2xl">✅</div>
                <p class="text-xs font-bold text-ocean-dark leading-tight">${s.statement}</p>
                ${helper?`<p class="text-xs text-ocean-teal mt-1">via ${helper}</p>`:''}`
             : `<div class="text-2xl ${isPend?'animate-bounce':'text-gray-300'}">${isPend?'🎯':'🔒'}</div>
-               <p class="text-xs font-bold ${isPend?'text-ocean-mid':'text-gray-400'}">#${i+1}</p>
+               <p class="text-xs font-bold ${isPend?'text-ocean-mid':'text-gray-400'}">#${vi+1}</p>
                <p class="text-xs ${isPend?'text-ocean-mid':'text-gray-400'}">${isPend?'Tap để xác nhận':'Chạm để tìm bạn'}</p>`
           }
         </div>`;
       }).join('');
     }
 
-    window.pickTile = function(i) {
+    // Returns the 1-based visual position of an original statement index
+    function visualSlot(oi) { return displayOrder.indexOf(oi) + 1; }
+
+    window.pickTile = function(oi) {
       if (pendingCode) {
-        activeTileIdx = i;
+        activeTileIdx = oi; // original index — validation uses this
         const stored = pendingCode;
         clearPending(false);
-        document.getElementById('modal-tile-num').textContent  = i + 1;
-        document.getElementById('modal-statement').textContent = statements[i]?.statement || '';
+        document.getElementById('modal-tile-num').textContent  = visualSlot(oi);
+        document.getElementById('modal-statement').textContent = statements[oi]?.statement || '';
         document.getElementById('verify-result').classList.add('hidden');
         document.getElementById('scan-modal').classList.remove('hidden');
         setMode('manual');
         document.getElementById('manual-code').value = stored;
         verifyManual();
       } else {
-        openModal(i);
+        openModal(oi);
       }
     };
 
     // ── Modals ───────────────────────────────────────────────────────────────
     window.openModal = function(idx) {
-      activeTileIdx = idx;
-      document.getElementById('modal-tile-num').textContent  = idx + 1;
+      activeTileIdx = idx; // original statement index
+      document.getElementById('modal-tile-num').textContent  = visualSlot(idx);
       document.getElementById('modal-statement').textContent = statements[idx]?.statement || '';
       document.getElementById('verify-result').classList.add('hidden');
       document.getElementById('manual-code').value = '';
