@@ -7,7 +7,18 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="../css/style.css">
-  <script>tailwind.config={theme:{extend:{colors:{'ocean-deep':'#03045E','ocean-dark':'#023E8A','ocean-mid':'#0077B6','sky-blue':'#00B4D8','foam-blue':'#ADE8F4','mist-blue':'#CAF0F8','coral-red':'#D62828'},fontFamily:{nunito:['Nunito','sans-serif']}}}}</script>
+  <script>tailwind.config={theme:{extend:{colors:{'ocean-deep':'#03045E','ocean-dark':'#023E8A','ocean-mid':'#0077B6','sky-blue':'#00B4D8','foam-blue':'#ADE8F4','mist-blue':'#CAF0F8','coral-red':'#D62828'},fontFamily:{nunito:['Nunito','sans-serif']}}}}}</script>
+  <style>
+    .opt-row { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+    .opt-letter { font-weight:800; color:#94A3B8; font-size:14px; min-width:20px; flex-shrink:0; }
+    .opt-remove { color:#EF4444; font-weight:800; font-size:14px; cursor:pointer; flex-shrink:0; line-height:1; padding:2px 6px; border-radius:6px; }
+    .opt-remove:hover { background:#FEE2E2; }
+    .media-preview-img { width:100%; max-height:180px; object-fit:contain; border-radius:10px; margin-bottom:8px; background:#F1F5F9; }
+    .correct-check { accent-color:#0077B6; width:16px; height:16px; flex-shrink:0; cursor:pointer; }
+    .correct-radio { accent-color:#0077B6; width:16px; height:16px; flex-shrink:0; cursor:pointer; }
+    .q-card { border-left:4px solid #ADE8F4; transition:border-color 0.2s; }
+    .q-card:focus-within { border-left-color:#0077B6; }
+  </style>
 </head>
 <body class="font-nunito bg-gray-50 min-h-screen">
   <div id="toast-container"></div>
@@ -28,18 +39,26 @@
     <!-- T/F Statements -->
     <div id="tf-section">
       <div class="card-ocean p-3 mb-4 text-sm text-ocean-dark">
-        ⚠️ <strong>Warning:</strong> These 10 statements are used in Check-in AND Find Fellow. Edit before the event starts.
+        ⚠️ <strong>Warning:</strong> These statements are used in the first-login survey AND Find Fellow tiles. Edit before the event starts.
       </div>
       <div id="tf-list" class="space-y-3 mb-4"></div>
-      <button onclick="addTF()" class="btn-secondary">+ Add Statement</button>
-      <button onclick="seedTFDefaults()" class="btn-primary mt-2">🌱 Seed Default Statements</button>
+      <div class="flex gap-2 flex-wrap">
+        <button onclick="addTF()" class="btn-secondary" style="width:auto;display:inline-block">+ Add Statement</button>
+        <button onclick="seedTFDefaults()" class="btn-primary" style="width:auto;display:inline-block">🌱 Seed Default Statements</button>
+      </div>
     </div>
 
     <!-- Quiz Questions -->
     <div id="quiz-section" class="hidden">
-      <div id="quiz-list" class="space-y-3 mb-4"></div>
-      <button onclick="addQuiz()" class="btn-secondary">+ Add Question</button>
-      <button onclick="seedQuizDefaults()" class="btn-primary mt-2">🌱 Seed Default Questions</button>
+      <div class="card-ocean p-3 mb-4 text-sm text-ocean-dark">
+        📌 Each question supports: <strong>image or video</strong>, <strong>2–8 options</strong>, <strong>single or multiple correct answers</strong>.
+        Videos: paste a YouTube URL. Images: upload a file (compressed, stored in Firestore).
+      </div>
+      <div id="quiz-list" class="space-y-4 mb-4"></div>
+      <div class="flex gap-2 flex-wrap">
+        <button onclick="addQuiz()" class="btn-secondary" style="width:auto;display:inline-block">+ Add Question</button>
+        <button onclick="seedQuizDefaults()" class="btn-primary" style="width:auto;display:inline-block">🌱 Seed Default Questions</button>
+      </div>
     </div>
   </div>
 
@@ -47,122 +66,74 @@
     import { auth } from '../js/firebase-config.js';
     import { onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
     import { db } from '../js/firebase-config.js';
-    import { collection, getDocs, doc, setDoc, deleteDoc, addDoc, updateDoc, writeBatch } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+    import {
+      collection, getDocs, doc, setDoc, deleteDoc, addDoc, updateDoc, writeBatch
+    } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
-    onAuthStateChanged(auth,u=>{if(!u)window.location.href='index.html';});
-    window.doSignOut=async()=>{await signOut(auth);window.location.href='index.html';};
+    onAuthStateChanged(auth, u => { if (!u) window.location.href = 'index.html'; });
+    window.doSignOut = async () => { await signOut(auth); window.location.href = 'index.html'; };
 
-    let tfDocs  = [];
+    let tfDocs   = [];
     let quizDocs = [];
     let activeTab = 'tf';
 
+    // Per-question state: current options array and pending image base64
+    const optionsMap   = {}; // qId → string[]
+    const mediaDataMap = {}; // qId → base64 or URL string
+
+    // ── Tabs ──────────────────────────────────────────────────────────────────
     window.switchTab = function(tab) {
       activeTab = tab;
-      document.getElementById('tf-section').classList.toggle('hidden', tab!=='tf');
-      document.getElementById('quiz-section').classList.toggle('hidden', tab!=='quiz');
-      document.getElementById('tab-tf').className   = `flex-1 py-2 rounded-lg font-bold text-sm ${tab==='tf'  ?'bg-ocean-mid text-white':'text-gray-400'}`;
-      document.getElementById('tab-quiz').className = `flex-1 py-2 rounded-lg font-bold text-sm ${tab==='quiz'?'bg-ocean-mid text-white':'text-gray-400'}`;
+      document.getElementById('tf-section').classList.toggle('hidden', tab !== 'tf');
+      document.getElementById('quiz-section').classList.toggle('hidden', tab !== 'quiz');
+      document.getElementById('tab-tf').className   = `flex-1 py-2 rounded-lg font-bold text-sm ${tab === 'tf'   ? 'bg-ocean-mid text-white' : 'text-gray-400'}`;
+      document.getElementById('tab-quiz').className = `flex-1 py-2 rounded-lg font-bold text-sm ${tab === 'quiz' ? 'bg-ocean-mid text-white' : 'text-gray-400'}`;
     };
 
+    // ── T/F ───────────────────────────────────────────────────────────────────
     async function loadTF() {
-      const snap = await getDocs(collection(db,'trueFalseStatements'));
-      tfDocs = snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>a.order-b.order);
-      document.getElementById('tf-list').innerHTML = tfDocs.map((s,i)=>`
+      const snap = await getDocs(collection(db, 'trueFalseStatements'));
+      tfDocs = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => a.order - b.order);
+      document.getElementById('tf-list').innerHTML = tfDocs.map((s, i) => `
         <div class="card p-3 flex items-start gap-3">
-          <span class="font-black text-gray-400 text-sm mt-2 w-5">${i+1}.</span>
-          <input value="${s.statement}" class="input-field flex-1 text-sm py-2" id="tf-stmt-${s.id}" style="padding:8px 12px">
+          <span class="font-black text-gray-400 text-sm mt-2 w-5">${i + 1}.</span>
+          <input value="${escHtml(s.statement)}" class="input-field flex-1 text-sm py-2" id="tf-stmt-${s.id}" style="padding:8px 12px">
           <input type="number" value="${s.order}" class="input-field text-sm w-16 py-2" id="tf-ord-${s.id}" style="padding:8px 10px" placeholder="Order">
           <button onclick="saveTF('${s.id}')" class="btn-primary btn-sm" style="width:auto;padding:6px 12px">Save</button>
           <button onclick="deleteTF('${s.id}')" class="btn-danger btn-sm" style="padding:6px 10px">🗑</button>
         </div>`).join('');
     }
 
-    async function loadQuiz() {
-      const snap = await getDocs(collection(db,'quizQuestions'));
-      quizDocs = snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>a.order-b.order);
-      document.getElementById('quiz-list').innerHTML = quizDocs.map((q,i)=>`
-        <div class="card p-4" id="qcard-${q.id}">
-          <div class="flex items-center gap-2 mb-2">
-            <span class="font-black text-gray-400 text-sm">Q${i+1}</span>
-            <input value="${q.order||i+1}" type="number" class="input-field w-16 text-xs py-1" id="q-ord-${q.id}" placeholder="Order" style="padding:4px 8px">
-            <label class="flex items-center gap-1 text-xs font-semibold ml-auto">
-              <input type="checkbox" ${q.active?'checked':''} id="q-active-${q.id}" class="accent-ocean-mid"> Active
-            </label>
-            <button onclick="deleteQuiz('${q.id}')" class="btn-danger btn-sm" style="padding:4px 10px">🗑</button>
-          </div>
-          <input value="${q.question}" class="input-field mb-2 text-sm" id="q-text-${q.id}" placeholder="Question text" style="padding:8px 12px">
-          <div class="space-y-1 mb-2">
-            ${['A','B','C','D'].map((l,oi)=>`
-              <div class="flex items-center gap-2">
-                <span class="font-bold text-gray-400 w-5">${l}.</span>
-                <input value="${q.options?.[oi]||''}" class="input-field flex-1 text-sm" id="q-opt-${q.id}-${oi}" style="padding:6px 10px">
-                <input type="radio" name="correct-${q.id}" value="${oi}" ${q.correctIndex===oi?'checked':''} id="q-cor-${q.id}-${oi}" class="accent-ocean-mid w-4 h-4">
-                <label for="q-cor-${q.id}-${oi}" class="text-xs text-gray-400">Correct</label>
-              </div>`).join('')}
-          </div>
-          <button onclick="saveQuiz('${q.id}')" class="btn-primary btn-sm" style="width:auto;display:inline-block">💾 Save</button>
-        </div>`).join('');
-    }
-
     window.saveTF = async function(id) {
-      document.getElementById('page-loader').classList.remove('hidden');
-      await updateDoc(doc(db,'trueFalseStatements',id),{
+      showLoader(true);
+      await setDoc(doc(db, 'trueFalseStatements', id), {
         statement: document.getElementById(`tf-stmt-${id}`).value.trim(),
-        order: parseInt(document.getElementById(`tf-ord-${id}`).value)||1
-      });
-      showToast('Statement saved!','success');
-      document.getElementById('page-loader').classList.add('hidden');
+        order:     parseInt(document.getElementById(`tf-ord-${id}`).value) || 1,
+        active:    true
+      }, { merge: true });
+      showToast('Statement saved!', 'success');
+      showLoader(false);
       loadTF();
     };
 
     window.deleteTF = async function(id) {
-      if(!confirm('Delete this statement?')) return;
-      document.getElementById('page-loader').classList.remove('hidden');
-      await deleteDoc(doc(db,'trueFalseStatements',id));
-      document.getElementById('page-loader').classList.add('hidden');
+      if (!confirm('Delete this T/F statement? This will affect Find Fellow tiles.')) return;
+      showLoader(true);
+      await deleteDoc(doc(db, 'trueFalseStatements', id));
+      showLoader(false);
       loadTF();
     };
 
     window.addTF = async function() {
-      document.getElementById('page-loader').classList.remove('hidden');
-      await addDoc(collection(db,'trueFalseStatements'),{statement:'New statement',order:tfDocs.length+1,active:true});
-      document.getElementById('page-loader').classList.add('hidden');
+      showLoader(true);
+      await addDoc(collection(db, 'trueFalseStatements'), { statement: 'New statement', order: tfDocs.length + 1, active: true });
+      showLoader(false);
       loadTF();
     };
 
-    window.saveQuiz = async function(id) {
-      document.getElementById('page-loader').classList.remove('hidden');
-      const correct = ['A','B','C','D'].findIndex((_,i)=>document.getElementById(`q-cor-${id}-${i}`)?.checked);
-      await updateDoc(doc(db,'quizQuestions',id),{
-        question:    document.getElementById(`q-text-${id}`).value.trim(),
-        options:     [0,1,2,3].map(i=>document.getElementById(`q-opt-${id}-${i}`).value.trim()),
-        correctIndex: correct>=0?correct:0,
-        active:      document.getElementById(`q-active-${id}`).checked,
-        order:       parseInt(document.getElementById(`q-ord-${id}`).value)||1
-      });
-      showToast('Question saved!','success');
-      document.getElementById('page-loader').classList.add('hidden');
-      loadQuiz();
-    };
-
-    window.deleteQuiz = async function(id) {
-      if(!confirm('Delete this question?')) return;
-      document.getElementById('page-loader').classList.remove('hidden');
-      await deleteDoc(doc(db,'quizQuestions',id));
-      document.getElementById('page-loader').classList.add('hidden');
-      loadQuiz();
-    };
-
-    window.addQuiz = async function() {
-      document.getElementById('page-loader').classList.remove('hidden');
-      await addDoc(collection(db,'quizQuestions'),{question:'New question',options:['A','B','C','D'],correctIndex:0,active:true,order:quizDocs.length+1});
-      document.getElementById('page-loader').classList.add('hidden');
-      loadQuiz();
-    };
-
     window.seedTFDefaults = async function() {
-      if(!confirm('This will ADD 10 default T/F statements. Existing ones will remain.')) return;
-      document.getElementById('page-loader').classList.remove('hidden');
+      if (!confirm('ADD 10 default T/F statements? Existing ones will remain.')) return;
+      showLoader(true);
       const defaults = [
         'Mình biết bơi','Mình biết chơi một nhạc cụ','Mình có nuôi thú cưng',
         'Mình đã từng đi du lịch một mình','Mình thường thức khuya sau 12 giờ đêm',
@@ -171,38 +142,341 @@
         'Mình đã từng tham gia CLB hoặc tổ chức học sinh/sinh viên'
       ];
       const batch = writeBatch(db);
-      defaults.forEach((s,i)=>{
-        const ref = doc(collection(db,'trueFalseStatements'));
-        batch.set(ref,{statement:s,order:i+1,active:true});
+      defaults.forEach((s, i) => {
+        batch.set(doc(collection(db, 'trueFalseStatements')), { statement: s, order: i + 1, active: true });
       });
       await batch.commit();
-      document.getElementById('page-loader').classList.add('hidden');
-      showToast('10 default statements added!','success');
+      showLoader(false);
+      showToast('10 default statements added!', 'success');
       loadTF();
     };
 
-    window.seedQuizDefaults = async function() {
-      if(!confirm('Add 5 default SAT quiz questions?')) return;
-      document.getElementById('page-loader').classList.remove('hidden');
-      const defaults = [
-        {q:'SAT là viết tắt của từ gì?',opts:['Student Attachment Team','Student Activity Team','Student Assistance Team','Student Achievement Team'],correct:0},
-        {q:'Số lượng thành viên lý tưởng cho mỗi team bonding là bao nhiêu?',opts:['3-5','6-8','9-12','2-3'],correct:1},
-        {q:'BOL trong SAT có nghĩa là gì?',opts:['Ban Ổn Lòng','Ban Ổn Lương','Ban Ổn Lượng','Ban Ôn Luyện'],correct:0},
-        {q:'Hoạt động "Find Your Fellow Sứa" yêu cầu bạn mở khoá bao nhiêu mảnh để nhận huy hiệu?',opts:['4/10','5/10','6/10','8/10'],correct:2},
-        {q:'Chủ đề của SAT Induction Day 2026B là gì?',opts:['SAT Rising','Sứa Khám Phá','Ocean Dream','Blue Wave'],correct:1},
-      ];
-      const batch = writeBatch(db);
-      defaults.forEach((d,i)=>{
-        const ref = doc(collection(db,'quizQuestions'));
-        batch.set(ref,{question:d.q,options:d.opts,correctIndex:d.correct,active:true,order:i+1});
+    // ── Quiz ──────────────────────────────────────────────────────────────────
+    async function loadQuiz() {
+      const snap = await getDocs(collection(db, 'quizQuestions'));
+      quizDocs = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (a.order || 0) - (b.order || 0));
+      document.getElementById('quiz-list').innerHTML = quizDocs.map((q, i) => buildQuizCard(q, i)).join('');
+    }
+
+    function buildQuizCard(q, i) {
+      const opts       = q.options || ['', '', '', ''];
+      const isMulti    = q.multiSelect || false;
+      const correctIdxs = q.correctIndexes || (q.correctIndex != null ? [q.correctIndex] : [0]);
+      const mediaType  = q.mediaType || 'none';
+      const mediaData  = q.mediaData || '';
+
+      optionsMap[q.id]   = [...opts];
+      mediaDataMap[q.id] = mediaData;
+
+      return `
+      <div class="card q-card p-4" id="qcard-${q.id}">
+        <!-- Row 1: number, order, toggles, delete -->
+        <div class="flex items-center gap-2 mb-3 flex-wrap">
+          <span class="font-black text-gray-400 text-sm">Q${i + 1}</span>
+          <input value="${q.order || i + 1}" type="number" class="input-field w-16 text-xs" id="q-ord-${q.id}" style="padding:4px 8px">
+          <label class="flex items-center gap-1 text-xs font-semibold cursor-pointer">
+            <input type="checkbox" ${q.active !== false ? 'checked' : ''} id="q-active-${q.id}" class="accent-ocean-mid"> Active
+          </label>
+          <label class="flex items-center gap-1 text-xs font-semibold cursor-pointer ml-2" title="Allow multiple correct answers">
+            <input type="checkbox" ${isMulti ? 'checked' : ''} id="q-multi-${q.id}" class="accent-purple-500"
+              onchange="toggleMultiMode('${q.id}')">
+            <span class="text-purple-600">⊞ Multi-answer</span>
+          </label>
+          <button onclick="deleteQuiz('${q.id}')" class="btn-danger btn-sm ml-auto" style="padding:4px 10px">🗑</button>
+        </div>
+
+        <!-- Question text -->
+        <textarea class="input-field mb-3 text-sm resize-y" id="q-text-${q.id}" rows="2"
+          style="padding:8px 12px">${escHtml(q.question)}</textarea>
+
+        <!-- Media -->
+        <div class="border border-foam-blue rounded-xl p-3 mb-3 bg-gray-50">
+          <p class="text-xs font-bold text-ocean-dark mb-2">📎 Media (optional)</p>
+          <div class="flex gap-4 mb-3">
+            ${['none','image','video'].map(t => `
+              <label class="flex items-center gap-1 text-xs cursor-pointer font-semibold">
+                <input type="radio" name="media-type-${q.id}" value="${t}"
+                  ${mediaType === t ? 'checked' : ''}
+                  onchange="switchMediaType('${q.id}','${t}')">
+                ${t === 'none' ? '✕ None' : t === 'image' ? '🖼 Image' : '🎬 Video URL'}
+              </label>`).join('')}
+          </div>
+
+          <!-- Image upload -->
+          <div id="media-img-${q.id}" class="${mediaType === 'image' ? '' : 'hidden'}">
+            <img id="q-img-preview-${q.id}" src="${mediaType === 'image' && mediaData ? mediaData : ''}"
+              class="media-preview-img ${mediaType === 'image' && mediaData ? '' : 'hidden'}">
+            <label class="btn-secondary btn-sm cursor-pointer inline-block" style="width:auto">
+              📷 Choose Image
+              <input type="file" accept="image/*" class="hidden" onchange="handleQuizImage(event,'${q.id}')">
+            </label>
+            <p class="text-xs text-gray-400 mt-1">Compressed to ~640px JPEG. Stored in Firestore — keep under 700KB source.</p>
+          </div>
+
+          <!-- Video URL -->
+          <div id="media-vid-${q.id}" class="${mediaType === 'video' ? '' : 'hidden'}">
+            <input type="url" class="input-field text-sm mb-2" id="q-vid-url-${q.id}"
+              value="${mediaType === 'video' ? escHtml(mediaData) : ''}"
+              placeholder="YouTube URL  e.g. https://youtu.be/abc123  or direct .mp4 URL"
+              oninput="previewVideo('${q.id}')">
+            <div id="q-vid-preview-${q.id}" class="${mediaType === 'video' && mediaData ? '' : 'hidden'}">
+              ${mediaType === 'video' && mediaData ? buildVideoHTML(mediaData, true) : ''}
+            </div>
+          </div>
+        </div>
+
+        <!-- Options -->
+        <p class="text-xs font-bold text-ocean-dark mb-1">
+          Answer Options
+          <span class="font-normal text-gray-400 ml-1">(${isMulti ? 'check all correct' : 'pick one correct'})</span>
+        </p>
+        <div id="q-options-${q.id}" class="mb-3">
+          ${buildOptionsHTML(q.id, opts, correctIdxs, isMulti)}
+        </div>
+
+        <div class="flex gap-2 flex-wrap">
+          <button onclick="addOption('${q.id}')" class="btn-secondary btn-sm" style="width:auto">+ Add Option</button>
+          <button onclick="saveQuiz('${q.id}')" class="btn-primary btn-sm" style="width:auto">💾 Save Question</button>
+        </div>
+      </div>`;
+    }
+
+    function buildOptionsHTML(qId, opts, correctIdxs, isMulti) {
+      const LETTERS = 'ABCDEFGH';
+      return opts.map((opt, oi) => `
+        <div class="opt-row" id="q-opt-row-${qId}-${oi}">
+          <span class="opt-letter">${LETTERS[oi]}.</span>
+          <input value="${escHtml(opt)}" class="input-field flex-1 text-sm" id="q-opt-${qId}-${oi}"
+            style="padding:6px 10px" placeholder="Option ${LETTERS[oi]}">
+          <label class="flex items-center gap-1 text-xs text-gray-500 cursor-pointer flex-shrink-0">
+            <input type="${isMulti ? 'checkbox' : 'radio'}" name="correct-${qId}"
+              id="q-cor-${qId}-${oi}" value="${oi}"
+              class="${isMulti ? 'correct-check' : 'correct-radio'}"
+              ${correctIdxs.includes(oi) ? 'checked' : ''}>
+            ✓
+          </label>
+          ${opts.length > 2
+            ? `<button onclick="removeOption('${qId}',${oi})" class="opt-remove" title="Remove option">✕</button>`
+            : '<span style="width:22px"></span>'}
+        </div>`).join('');
+    }
+
+    // ── Option helpers ─────────────────────────────────────────────────────────
+    function readOptionsFromDOM(id) {
+      return (optionsMap[id] || []).map((_, i) => {
+        const el = document.getElementById(`q-opt-${id}-${i}`);
+        return el ? el.value : '';
       });
-      await batch.commit();
-      document.getElementById('page-loader').classList.add('hidden');
-      showToast('5 default quiz questions added!','success');
+    }
+
+    function readCorrectFromDOM(id) {
+      return [...document.querySelectorAll(`input[name="correct-${id}"]:checked`)]
+        .map(el => parseInt(el.value)).filter(v => !isNaN(v));
+    }
+
+    function reRenderOptions(id, correctIdxs) {
+      const opts    = optionsMap[id] || [];
+      const isMulti = document.getElementById(`q-multi-${id}`)?.checked || false;
+      document.getElementById(`q-options-${id}`).innerHTML =
+        buildOptionsHTML(id, opts, correctIdxs ?? readCorrectFromDOM(id), isMulti);
+    }
+
+    window.addOption = function(id) {
+      const current = readOptionsFromDOM(id);
+      if (current.length >= 8) { showToast('Maximum 8 options!', 'error'); return; }
+      optionsMap[id] = [...current, ''];
+      reRenderOptions(id);
+    };
+
+    window.removeOption = function(id, idx) {
+      const current = readOptionsFromDOM(id);
+      if (current.length <= 2) { showToast('Minimum 2 options required!', 'error'); return; }
+      const prevCorrects = readCorrectFromDOM(id);
+      current.splice(idx, 1);
+      optionsMap[id] = current;
+      // Adjust correct indexes after removal
+      const newCorrects = prevCorrects
+        .filter(v => v !== idx)
+        .map(v => v > idx ? v - 1 : v);
+      reRenderOptions(id, newCorrects);
+    };
+
+    window.toggleMultiMode = function(id) {
+      const isMulti = document.getElementById(`q-multi-${id}`)?.checked || false;
+      const prevCorrects = readCorrectFromDOM(id);
+      // For single-select, keep only first selected
+      reRenderOptions(id, isMulti ? prevCorrects : prevCorrects.slice(0, 1));
+    };
+
+    // ── Media helpers ──────────────────────────────────────────────────────────
+    window.switchMediaType = function(id, type) {
+      document.getElementById(`media-img-${id}`).classList.toggle('hidden', type !== 'image');
+      document.getElementById(`media-vid-${id}`).classList.toggle('hidden', type !== 'video');
+    };
+
+    window.handleQuizImage = async function(event, id) {
+      const file = event.target.files[0];
+      if (!file) return;
+      showToast('Compressing image…', 'info');
+      try {
+        const base64 = await compressQuizImage(file);
+        mediaDataMap[id] = base64;
+        const prev = document.getElementById(`q-img-preview-${id}`);
+        prev.src = base64;
+        prev.classList.remove('hidden');
+        showToast('Image ready — click 💾 Save to store it.', 'success');
+      } catch {
+        showToast('Failed to read image. Try a different file.', 'error');
+      }
+    };
+
+    window.previewVideo = function(id) {
+      const url = document.getElementById(`q-vid-url-${id}`)?.value.trim() || '';
+      const div = document.getElementById(`q-vid-preview-${id}`);
+      if (!url) { div.classList.add('hidden'); div.innerHTML = ''; return; }
+      div.innerHTML = buildVideoHTML(url, true);
+      div.classList.remove('hidden');
+    };
+
+    function buildVideoHTML(url, compact) {
+      const embedUrl = toYouTubeEmbed(url);
+      const h = compact ? '180px' : '56.25%';
+      if (embedUrl) {
+        return `<div class="relative rounded-xl overflow-hidden mb-2" style="padding-top:${compact ? h : '56.25%'}">
+          <iframe src="${embedUrl}" class="absolute inset-0 w-full h-full" frameborder="0" allowfullscreen loading="lazy"></iframe>
+        </div>`;
+      }
+      return `<video src="${url}" controls class="w-full rounded-xl mb-2" style="max-height:${h}"></video>`;
+    }
+
+    function toYouTubeEmbed(url) {
+      try {
+        const u = new URL(url);
+        let vid = null;
+        if (u.hostname.includes('youtube.com') && u.pathname === '/watch') vid = u.searchParams.get('v');
+        if (u.hostname === 'youtu.be') vid = u.pathname.slice(1).split('?')[0];
+        if (u.pathname.startsWith('/embed/')) vid = u.pathname.split('/embed/')[1]?.split(/[/?]/)[0];
+        return vid ? `https://www.youtube.com/embed/${vid}?rel=0` : null;
+      } catch { return null; }
+    }
+
+    function compressQuizImage(file) {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        const objectUrl = URL.createObjectURL(file);
+        img.onload = () => {
+          const MAX = 640;
+          let w = img.width, h = img.height;
+          if (w > MAX) { h = Math.round(h * MAX / w); w = MAX; }
+          else if (h > MAX) { w = Math.round(w * MAX / h); h = MAX; }
+          const canvas = document.createElement('canvas');
+          canvas.width = w; canvas.height = h;
+          canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+          URL.revokeObjectURL(objectUrl);
+          resolve(canvas.toDataURL('image/jpeg', 0.8));
+        };
+        img.onerror = () => { URL.revokeObjectURL(objectUrl); reject(); };
+        img.src = objectUrl;
+      });
+    }
+
+    // ── Save / delete quiz ─────────────────────────────────────────────────────
+    window.saveQuiz = async function(id) {
+      showLoader(true);
+      try {
+        const mediaType = document.querySelector(`input[name="media-type-${id}"]:checked`)?.value || 'none';
+        let mediaData = '';
+        if (mediaType === 'image') mediaData = mediaDataMap[id] || '';
+        if (mediaType === 'video') mediaData = document.getElementById(`q-vid-url-${id}`)?.value.trim() || '';
+
+        const opts       = readOptionsFromDOM(id);
+        const isMulti    = document.getElementById(`q-multi-${id}`)?.checked || false;
+        const correctIdxs = readCorrectFromDOM(id);
+        if (correctIdxs.length === 0) { showToast('Please mark at least one correct answer!', 'error'); showLoader(false); return; }
+
+        await setDoc(doc(db, 'quizQuestions', id), {
+          question:      document.getElementById(`q-text-${id}`).value.trim(),
+          mediaType,
+          mediaData,
+          options:       opts,
+          multiSelect:   isMulti,
+          correctIndexes: correctIdxs,
+          correctIndex:  correctIdxs[0] ?? 0, // backward compat
+          active:        document.getElementById(`q-active-${id}`).checked,
+          order:         parseInt(document.getElementById(`q-ord-${id}`).value) || 1
+        }, { merge: true });
+
+        showToast('Question saved! ✅', 'success');
+      } catch (e) {
+        showToast('Error saving: ' + e.message, 'error');
+      }
+      showLoader(false);
       loadQuiz();
     };
 
-    function showToast(msg,type='info'){const c=document.getElementById('toast-container');const t=document.createElement('div');t.className=`toast toast-${type}`;t.textContent=msg;c.appendChild(t);setTimeout(()=>t.classList.add('show'),10);setTimeout(()=>{t.classList.remove('show');setTimeout(()=>t.remove(),300);},3000);}
+    window.deleteQuiz = async function(id) {
+      if (!confirm('Delete this quiz question?')) return;
+      showLoader(true);
+      await deleteDoc(doc(db, 'quizQuestions', id));
+      showLoader(false);
+      loadQuiz();
+    };
+
+    window.addQuiz = async function() {
+      showLoader(true);
+      await addDoc(collection(db, 'quizQuestions'), {
+        question:       'New question',
+        mediaType:      'none',
+        mediaData:      '',
+        options:        ['Option A', 'Option B', 'Option C', 'Option D'],
+        multiSelect:    false,
+        correctIndexes: [0],
+        correctIndex:   0,
+        active:         true,
+        order:          quizDocs.length + 1
+      });
+      showLoader(false);
+      loadQuiz();
+    };
+
+    window.seedQuizDefaults = async function() {
+      if (!confirm('Add 5 default SAT quiz questions?')) return;
+      showLoader(true);
+      const defaults = [
+        { q:'SAT là viết tắt của từ gì?',                    opts:['Student Attachment Team','Student Activity Team','Student Assistance Team','Student Achievement Team'], correct:[0] },
+        { q:'Số lượng thành viên lý tưởng cho mỗi team là?', opts:['3-5','6-8','9-12','2-3'],                                                                            correct:[1] },
+        { q:'BOL trong SAT có nghĩa là gì?',                  opts:['Ban Ổn Lòng','Ban Ổn Lương','Ban Ổn Lượng','Ban Ôn Luyện'],                                          correct:[0] },
+        { q:'Find Fellow yêu cầu mở khoá bao nhiêu mảnh để nhận huy hiệu?', opts:['4/10','5/10','6/10','8/10'],                                                          correct:[2] },
+        { q:'Chủ đề SAT Induction Day 2026B là gì?',         opts:['SAT Rising','Sứa Khám Phá','Ocean Dream','Blue Wave'],                                               correct:[1] },
+      ];
+      const batch = writeBatch(db);
+      defaults.forEach((d, i) => {
+        batch.set(doc(collection(db, 'quizQuestions')), {
+          question: d.q, options: d.opts,
+          correctIndexes: d.correct, correctIndex: d.correct[0],
+          multiSelect: false, mediaType: 'none', mediaData: '',
+          active: true, order: i + 1
+        });
+      });
+      await batch.commit();
+      showLoader(false);
+      showToast('5 default questions added!', 'success');
+      loadQuiz();
+    };
+
+    // ── Utilities ──────────────────────────────────────────────────────────────
+    function escHtml(str) {
+      return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+    function showLoader(on) { document.getElementById('page-loader').classList.toggle('hidden', !on); }
+    function showToast(msg, type='info') {
+      const c = document.getElementById('toast-container');
+      const t = document.createElement('div');
+      t.className = `toast toast-${type}`; t.textContent = msg;
+      c.appendChild(t);
+      setTimeout(() => t.classList.add('show'), 10);
+      setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 300); }, 3500);
+    }
 
     loadTF(); loadQuiz();
   </script>
