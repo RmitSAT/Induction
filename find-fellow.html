@@ -235,7 +235,7 @@
     <a href="dashboard.html" class="text-foam-blue font-bold text-sm">&larr; Home</a>
     <span class="text-white font-black">🪸 Find Your Fellow</span>
     <div class="flex items-center gap-2">
-    <button id="mute-btn" class="mute-btn" onclick="const m=toggleMute();syncMuteBtn('mute-btn')" title="Tắt/bật âm thanh">🔊</button>
+    <button id="mute-btn" class="mute-btn" onclick="handleMute()" title="Tắt/bật âm thanh">🔊</button>
     <button id="radar-header-btn" onclick="openConsentOrRadar()"
       style="display:flex;align-items:center;gap:6px;background:rgba(0,180,216,0.15);
              border:1px solid rgba(0,180,216,0.4);border-radius:20px;padding:4px 12px;
@@ -510,6 +510,8 @@
     } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
     const session = requireAuth();
+    window.handleMute = function() { toggleMute(); syncMuteBtn('mute-btn'); };
+
     let statements    = [];
     let displayOrder  = []; // shuffled visual order — maps visual slot → original statement index
     let member        = null;

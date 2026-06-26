@@ -18,7 +18,7 @@ export function clearSession() {
   localStorage.removeItem(SESSION_KEY);
 }
 
-export function requireAuth(redirectTo = '/index.html') {
+export function requireAuth(redirectTo = 'index.html') {
   const session = getSession();
   if (!session || !session.memberId) {
     window.location.href = redirectTo;

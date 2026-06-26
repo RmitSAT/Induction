@@ -112,7 +112,7 @@
   </nav>
 
   <script type="module">
-    import { requireAuth } from './js/auth.js';
+    import { requireAuth, clearSession } from './js/auth.js';
     import { db } from './js/firebase-config.js';
     import { doc, getDoc, getDocs, updateDoc, collection, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
     import { getEvolutionStage, isMuted, toggleMute, syncMuteBtn } from './js/sfx.js';
@@ -220,7 +220,7 @@
     async function loadDashboard() {
       try {
         const memberDoc = await getDoc(doc(db, 'members', session.memberId));
-        if (!memberDoc.exists()) { window.location.href = 'index.html'; return; }
+        if (!memberDoc.exists()) { clearSession(); window.location.href = 'index.html'; return; }
         const member = memberDoc.data();
 
         // Header
