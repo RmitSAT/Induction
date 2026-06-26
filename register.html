@@ -150,6 +150,10 @@
 
     <!-- SUCCESS SCREEN -->
     <div id="success-screen" class="card p-6 text-center fade-in hidden">
+      <!-- Auto-saved card notice -->
+      <div id="card-dl-notice" class="hidden mb-3 bg-green-50 border border-green-200 rounded-xl p-3 text-sm text-green-700 font-bold">
+        📥 Thẻ đăng nhập đã được tải về thiết bị!
+      </div>
       <!-- Early Diver chip (shown conditionally) -->
       <div id="early-diver-badge" class="hidden mb-3">
         <div class="inline-flex items-center gap-2 bg-orange-100 border border-orange-300 rounded-full px-4 py-2">
@@ -179,9 +183,12 @@
 
       <p class="text-ocean-dark font-bold mb-2">Mã Access Code của bạn:</p>
       <div class="access-code-box mb-3" id="success-code"></div>
-      <p class="text-xs text-coral-red font-bold mb-5">📸 Chụp màn hình hoặc ghi lại mã này để đăng nhập lại!</p>
+      <p class="text-xs text-coral-red font-bold mb-3">📸 Chụp màn hình hoặc ghi lại mã này để đăng nhập lại!</p>
 
-      <div id="success-qr" class="flex justify-center mb-5"></div>
+      <div id="success-qr" class="flex justify-center mb-4"></div>
+      <button onclick="manualDownloadCard()" class="btn-secondary mb-5" style="max-width:240px;margin:0 auto 20px">
+        📥 Tải Thẻ Đăng Nhập (PNG)
+      </button>
 
       <a href="dashboard.html" class="btn-primary">🌊 Đến Mission Hub &rarr;</a>
     </div>
@@ -369,6 +376,11 @@
         document.getElementById('success-code').textContent = code;
         document.getElementById('success-screen').classList.remove('hidden');
         new QRCode(document.getElementById('success-qr'), { text: code, width: 160, height: 160, colorDark:'#03045E', colorLight:'#CAF0F8' });
+        _dlName = memberData.name; _dlCode = code;
+        setTimeout(() => {
+          doDownloadCard();
+          document.getElementById('card-dl-notice').classList.remove('hidden');
+        }, 600);
 
         // Show Early Diver badge
         if (isEarlyDiver) document.getElementById('early-diver-badge').classList.remove('hidden');
@@ -395,6 +407,74 @@
         btn.disabled = false;
       }
     };
+
+    // ── Login card auto-download ──────────────────────────────────────────────
+    let _dlName = '', _dlCode = '';
+
+    function buildCardCanvas(name, code, qrCanvas) {
+      const W = 480, H = 270, S = 2; // S = scale for retina
+      const cvs = document.createElement('canvas');
+      cvs.width = W * S; cvs.height = H * S;
+      const ctx = cvs.getContext('2d');
+      ctx.scale(S, S);
+
+      // Background gradient
+      const bg = ctx.createLinearGradient(0, 0, W, H);
+      bg.addColorStop(0, '#03045E'); bg.addColorStop(0.5, '#023E8A'); bg.addColorStop(1, '#0077B6');
+      ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+
+      // Subtle border
+      ctx.strokeStyle = 'rgba(0,180,216,0.5)'; ctx.lineWidth = 2;
+      ctx.strokeRect(3, 3, W-6, H-6);
+
+      // Title
+      ctx.fillStyle = '#ADE8F4'; ctx.font = 'bold 13px Arial, sans-serif';
+      ctx.textAlign = 'left'; ctx.fillText('Sua Kham Pha 2026B — The Dang Nhap', 22, 32);
+
+      // Divider
+      ctx.strokeStyle = 'rgba(173,232,244,0.3)'; ctx.lineWidth = 0.8;
+      ctx.beginPath(); ctx.moveTo(22, 42); ctx.lineTo(W-22, 42); ctx.stroke();
+
+      // Name
+      ctx.fillStyle = '#ffffff'; ctx.font = 'bold 28px Arial, sans-serif';
+      ctx.fillText(name, 22, 82);
+
+      // Code label
+      ctx.fillStyle = '#ADE8F4'; ctx.font = '12px Arial, sans-serif';
+      ctx.fillText('Access Code:', 22, 108);
+
+      // Code box
+      ctx.fillStyle = 'rgba(0,180,216,0.22)'; ctx.fillRect(22, 116, 192, 52);
+      ctx.strokeStyle = 'rgba(0,180,216,0.65)'; ctx.lineWidth = 1.2; ctx.strokeRect(22, 116, 192, 52);
+      ctx.fillStyle = '#ffffff'; ctx.font = 'bold 34px "Courier New", monospace';
+      ctx.textAlign = 'center'; ctx.fillText(code, 22 + 96, 153);
+
+      // QR code
+      if (qrCanvas) {
+        const QS = 160;
+        ctx.fillStyle = '#CAF0F8'; ctx.fillRect(W-QS-22, 46, QS, QS);
+        ctx.drawImage(qrCanvas, W-QS-22, 46, QS, QS);
+        ctx.strokeStyle = 'rgba(0,180,216,0.5)'; ctx.lineWidth = 1; ctx.strokeRect(W-QS-22, 46, QS, QS);
+      }
+
+      // Bottom note
+      ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(173,232,244,0.55)';
+      ctx.font = '10px Arial, sans-serif';
+      ctx.fillText('Giu the nay de dang nhap lai — SAT Induction 2026B', W/2, H-12);
+
+      return cvs;
+    }
+
+    function doDownloadCard() {
+      const qrCanvas = document.querySelector('#success-qr canvas');
+      const card = buildCardCanvas(_dlName, _dlCode, qrCanvas);
+      const a = document.createElement('a');
+      a.download = `SAT-2026B-${_dlCode}.png`;
+      a.href = card.toDataURL('image/png');
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    }
+
+    window.manualDownloadCard = doDownloadCard;
 
     window.triggerTypeReveal = function() {
       document.getElementById('type-reveal-card').classList.add('flipped');

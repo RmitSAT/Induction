@@ -409,10 +409,24 @@
         <button onclick="closeModal()" class="text-gray-400 text-2xl leading-none">&times;</button>
       </div>
 
-      <div class="bg-mist-blue rounded-xl p-4 mb-4">
+      <div class="bg-mist-blue rounded-xl p-4 mb-3">
         <p class="text-xs text-gray-500 font-semibold mb-1">Câu hỏi #<span id="modal-tile-num"></span>:</p>
         <p class="font-black text-ocean-dark text-base" id="modal-statement"></p>
         <p class="text-xs text-sky-blue mt-2 font-bold">Tìm người trả lời TRUE cho câu này!</p>
+      </div>
+
+      <!-- Hint section -->
+      <div class="mb-3">
+        <div id="hint-result" class="hidden rounded-xl p-3 mb-2 text-center"
+             style="background:linear-gradient(135deg,#03045E,#0077B6);border:1.5px solid rgba(0,180,216,0.5)">
+          <p class="text-xs font-bold mb-1" style="color:#ADE8F4">💡 Gợi ý — tìm người có tên:</p>
+          <p id="hint-masked" class="font-black text-xl tracking-widest text-white"></p>
+          <p class="text-xs mt-1" style="color:#90E0EF">Đây là 1/3 ký tự trong tên của họ</p>
+        </div>
+        <button id="hint-btn" onclick="useHint()"
+          class="w-full py-2 rounded-xl font-bold text-sm border-2 border-amber-300 bg-amber-50 text-amber-800">
+          💡 Xem Gợi Ý Tên (−10 điểm)
+        </button>
       </div>
 
       <div class="flex gap-2 mb-4">
@@ -450,6 +464,18 @@
         <p class="font-bold" id="result-msg"></p>
         <p class="text-sm text-gray-500" id="result-sub"></p>
       </div>
+    </div>
+  </div>
+
+  <!-- ════════ MATCHED PERSON MODAL ════════ -->
+  <div id="matched-modal" class="modal-overlay hidden">
+    <div class="modal-sheet">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="font-black text-ocean-dark text-lg">🤝 Người Ghép Mảnh</h3>
+        <button onclick="document.getElementById('matched-modal').classList.add('hidden')"
+          class="text-gray-400 text-2xl leading-none">&times;</button>
+      </div>
+      <div id="matched-card-content" class="text-center py-8"><div class="spinner mx-auto"></div></div>
     </div>
   </div>
 
@@ -493,6 +519,7 @@
     let html5Scanner   = null;
     let fellowRequired = 6;
     let maxPerTarget   = 2;
+    let tileHelperIds  = {}; // { [originalTileIdx]: memberId }
 
     // ── Per-member deterministic shuffle ─────────────────────────────────────
     // Converts member ID string to a stable 32-bit seed
@@ -533,6 +560,120 @@
     let sweepRaf   = null;
     let lastSweepAngle = -1;
 
+    // ── #7 View matched person's profile card ────────────────────────────────
+    window.viewMatchedCard = async function(oi) {
+      const matchId = tileHelperIds[oi];
+      const modal   = document.getElementById('matched-modal');
+      const content = document.getElementById('matched-card-content');
+      content.innerHTML = '<div class="text-center py-8"><div class="spinner mx-auto"></div></div>';
+      modal.classList.remove('hidden');
+
+      if (!matchId) {
+        content.innerHTML = '<p class="text-center text-gray-500 py-4">Chưa có thông tin người này (quét lại để cập nhật)</p>';
+        return;
+      }
+      try {
+        const snap = await getDoc(doc(db, 'members', matchId));
+        if (!snap.exists()) { content.innerHTML = '<p class="text-center text-coral-red">Không tìm thấy hồ sơ</p>'; return; }
+        const m = snap.data();
+        const SAT_LABELS = { spotlight:'⭐ Spotlight', flow:'🌊 Flow', care:'💙 Care', creative:'🎨 Creative', calm:'🧘 Calm' };
+        const initials = m.name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+        content.innerHTML = `
+          <div class="text-center mb-4">
+            <div class="w-20 h-20 rounded-full overflow-hidden mx-auto mb-3 border-4 border-sky-blue bg-sky-blue flex items-center justify-center">
+              ${m.photoURL
+                ? `<img src="${m.photoURL}" class="w-full h-full object-cover">`
+                : `<span class="text-2xl font-black text-ocean-dark">${initials}</span>`}
+            </div>
+            <h3 class="font-black text-ocean-dark text-lg">${m.name}</h3>
+            <div class="flex justify-center gap-2 mt-1 flex-wrap">
+              <span class="chip chip-newbie text-xs">${m.status === 'newbie' ? '🐣 Newbie' : '🐠 Oldbie'}</span>
+              <span class="chip chip-sat text-xs">${SAT_LABELS[m.satType] || ''}</span>
+            </div>
+          </div>
+          <div class="bg-mist-blue rounded-xl p-3 mb-3 text-left">
+            <p class="text-xs font-bold text-gray-500 mb-1">📋 Câu ghép mảnh:</p>
+            <p class="text-sm font-bold text-ocean-dark">${statements[oi]?.statement || ''}</p>
+            <p class="text-xs text-sky-blue font-bold mt-1">✅ Họ trả lời TRUE</p>
+          </div>
+          <div class="space-y-2 text-sm text-left">
+            ${m.dateOfBirth ? `<div class="flex gap-2"><span class="font-bold text-gray-400 w-20 shrink-0">Ngày sinh</span><span class="text-ocean-dark">${m.dateOfBirth}</span></div>` : ''}
+            ${m.school     ? `<div class="flex gap-2"><span class="font-bold text-gray-400 w-20 shrink-0">Trường</span><span class="text-ocean-dark">${m.school}</span></div>` : ''}
+            ${m.major      ? `<div class="flex gap-2"><span class="font-bold text-gray-400 w-20 shrink-0">Ngành</span><span class="text-ocean-dark">${m.major}</span></div>` : ''}
+          </div>
+          ${m.bio ? `<div class="mt-3 rounded-xl p-3 text-left" style="background:#EFF8FF;border:1.5px solid #ADE8F4">
+            <p class="text-xs font-bold text-ocean-mid mb-1">💬 Fun Fact</p>
+            <p class="text-sm text-ocean-dark">${m.bio}</p>
+          </div>` : ''}`;
+      } catch {
+        content.innerHTML = '<p class="text-center text-coral-red py-4">Lỗi tải thông tin</p>';
+      }
+    };
+
+    document.getElementById('matched-modal').addEventListener('click',
+      e => { if (e.target === e.currentTarget) e.currentTarget.classList.add('hidden'); });
+
+    // ── #4 Hint clue ─────────────────────────────────────────────────────────
+    function maskName(name) {
+      let ni = 0;
+      return name.split('').map(c => c === ' ' ? ' ' : (ni++ % 3 === 0 ? c : '_')).join('');
+    }
+
+    function showHintResult(masked) {
+      document.getElementById('hint-masked').textContent = masked;
+      document.getElementById('hint-result').classList.remove('hidden');
+      document.getElementById('hint-btn').classList.add('hidden');
+    }
+
+    window.useHint = async function() {
+      const btn = document.getElementById('hint-btn');
+      btn.disabled = true; btn.textContent = '⏳ Đang tìm...';
+
+      try {
+        const mSnap = await getDoc(doc(db, 'members', session.memberId));
+        const pts   = mSnap.data().points || 0;
+        if (pts < 10) {
+          showToast('Cần ít nhất 10 điểm để dùng gợi ý!', 'error');
+          btn.disabled = false; btn.textContent = '💡 Xem Gợi Ý Tên (−10 điểm)';
+          return;
+        }
+
+        const stmtId = statements[activeTileIdx]?.id;
+        if (!stmtId) { btn.disabled = false; return; }
+
+        // IDs already used as helpers (for any tile)
+        const usedIds = new Set(Object.values(tileHelperIds));
+        usedIds.add(session.memberId);
+
+        const allSnap  = await getDocs(collection(db, 'members'));
+        const eligible = allSnap.docs.filter(d =>
+          !usedIds.has(d.id) && (d.data().trueFalseAnswers || {})[stmtId] === true
+        );
+
+        if (!eligible.length) {
+          showToast('Không tìm được gợi ý phù hợp lúc này!', 'error');
+          btn.disabled = false; btn.textContent = '💡 Xem Gợi Ý Tên (−10 điểm)'; return;
+        }
+
+        const picked = eligible[Math.floor(Math.random() * eligible.length)];
+        const masked = maskName(picked.data().name);
+
+        await updateDoc(doc(db, 'members', session.memberId), {
+          points: pts - 10,
+          [`tileHints.${activeTileIdx}`]: { masked, memberId: picked.id, stmtId }
+        });
+        if (!member.tileHints) member.tileHints = {};
+        member.tileHints[activeTileIdx] = { masked, memberId: picked.id };
+        member.points = pts - 10;
+
+        showHintResult(masked);
+        showToast('💡 Gợi ý đã hiển thị! −10 điểm', 'info');
+      } catch (e) {
+        showToast('Lỗi: ' + e.message, 'error');
+        btn.disabled = false; btn.textContent = '💡 Xem Gợi Ý Tên (−10 điểm)';
+      }
+    };
+
     // ── Load ─────────────────────────────────────────────────────────────────
     async function load() {
       const [mSnap, sSnap, cfgSnap] = await Promise.all([
@@ -546,6 +687,17 @@
       fellowRequired = cfg.fellowTilesRequired || 6;
       maxPerTarget   = cfg.maxTilesPerTarget   || 1;
       unlockedTiles  = member.unlockedTiles    || [];
+
+      // Build tileHelperIds — prefer saved field, fill gaps from fellowScans subcollection
+      tileHelperIds = { ...(member.tileHelperIds || {}) };
+      try {
+        const scansSnap = await getDocs(collection(db, 'members', session.memberId, 'fellowScans'));
+        scansSnap.docs.forEach(d => {
+          (d.data().tilesHelped || []).forEach(ti => {
+            if (tileHelperIds[ti] == null) tileHelperIds[ti] = d.id;
+          });
+        });
+      } catch {}
 
       // Build this member's unique card order (deterministic from their ID)
       displayOrder = seededShuffle(
@@ -598,11 +750,12 @@
         const done   = unlockedTiles.includes(oi);
         const helper = member.tileHelpers ? member.tileHelpers[oi] : null;
         return `<div class="tile-card ${done?'tile-unlocked':'tile-locked'} ${!done&&isPend?'radar-pending':''}"
-                     onclick="${done?'':'pickTile('+oi+')'}">
+                     onclick="${done ? 'viewMatchedCard('+oi+')' : 'pickTile('+oi+')'}">
           ${done
             ? `<div class="text-2xl">✅</div>
                <p class="text-xs font-bold text-ocean-dark leading-tight">${s.statement}</p>
-               ${helper?`<p class="text-xs text-ocean-teal mt-1">via ${helper}</p>`:''}`
+               ${helper ? `<p class="text-xs text-ocean-teal mt-1">🤝 ${helper}</p>` : ''}
+               <p class="text-xs text-sky-blue mt-1" style="opacity:.7">Tap để xem hồ sơ</p>`
             : `<div class="text-2xl ${isPend?'animate-bounce':'text-gray-300'}">${isPend?'🎯':'🔒'}</div>
                <p class="text-xs font-bold ${isPend?'text-ocean-mid':'text-gray-400'}">#${vi+1}</p>
                <p class="text-xs ${isPend?'text-ocean-mid':'text-gray-400'}">${isPend?'Tap để xác nhận':'Chạm để tìm bạn'}</p>`
@@ -638,6 +791,15 @@
       document.getElementById('modal-statement').textContent = statements[idx]?.statement || '';
       document.getElementById('verify-result').classList.add('hidden');
       document.getElementById('manual-code').value = '';
+      // Hint section — restore saved hint or reset
+      const savedHint = (member.tileHints || {})[idx];
+      if (savedHint) {
+        showHintResult(savedHint.masked);
+      } else {
+        document.getElementById('hint-result').classList.add('hidden');
+        document.getElementById('hint-btn').classList.remove('hidden');
+        document.getElementById('hint-btn').disabled = false;
+      }
       document.getElementById('scan-modal').classList.remove('hidden');
       setMode(radarActive && nearbyMembers.length ? 'nearby' : 'manual');
     };
@@ -725,16 +887,17 @@
         }
 
         // ✅ UNLOCK
-        const newUnlocked = [...unlockedTiles, activeTileIdx];
-        const tileHelpers = { ...(member.tileHelpers||{}), [activeTileIdx]: target.name.split(' ').pop() };
+        const newUnlocked    = [...unlockedTiles, activeTileIdx];
+        const tileHelpers    = { ...(member.tileHelpers||{}),    [activeTileIdx]: target.name.split(' ').pop() };
+        const newHelperIds   = { ...tileHelperIds, [activeTileIdx]: target.id };
         await runTransaction(db, async tx => {
           tx.update(doc(db,'members',session.memberId),
-            { unlockedTiles: arrayUnion(activeTileIdx), fellowProgress: newUnlocked.length, tileHelpers });
+            { unlockedTiles: arrayUnion(activeTileIdx), fellowProgress: newUnlocked.length, tileHelpers, tileHelperIds: newHelperIds });
           tx.set(doc(db,'members',session.memberId,'fellowScans',target.id),
             { tilesHelped: arrayUnion(activeTileIdx), lastScannedAt: serverTimestamp() }, { merge:true });
         });
         await logScan(target.id, true);
-        unlockedTiles = newUnlocked; member.tileHelpers = tileHelpers;
+        unlockedTiles = newUnlocked; member.tileHelpers = tileHelpers; tileHelperIds = newHelperIds;
 
         showVerifyResult('🎉',`${target.name.split(' ').pop()} nói TRUE! Mảnh #${activeTileIdx+1} mở!`,'','success');
         playBubblePop();
