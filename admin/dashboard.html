@@ -169,6 +169,23 @@
     </div>
     <!-- ════════════════════════════════════════════════════════════════════ -->
 
+    <!-- 📝 Archive Pearl Form URLs -->
+    <div class="card p-5 mb-6 border-2 border-sky-200">
+      <h2 class="font-black text-ocean-dark mb-1">📝 Archive Pearl — Form Links</h2>
+      <p class="text-xs text-gray-500 mb-4">URL sẽ mở khi member nhấn "Mở Form". Mặc định đã điền sẵn; thay đổi nếu cần.</p>
+      <div class="space-y-3 mb-3">
+        <div>
+          <label class="text-sm font-bold text-ocean-dark block mb-1">Newbie Form URL</label>
+          <input type="url" id="form-url-newbie" class="input-field" placeholder="https://forms.office.com/...">
+        </div>
+        <div>
+          <label class="text-sm font-bold text-ocean-dark block mb-1">Oldbie Form URL</label>
+          <input type="url" id="form-url-oldbie" class="input-field" placeholder="https://forms.office.com/...">
+        </div>
+      </div>
+      <button onclick="saveFormUrls()" class="btn-primary btn-sm" style="width:auto;display:inline-block">💾 Save Form URLs</button>
+    </div>
+
     <!-- Quick links -->
     <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
       <a href="members.html"   class="card p-4 text-center hover:bg-mist-blue transition-colors block">👥<p class="font-bold text-sm mt-1 text-ocean-dark">Members</p></a>
@@ -186,7 +203,11 @@
     import { auth } from '../js/firebase-config.js';
     import { onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
     import { db } from '../js/firebase-config.js';
-    import { collection, getDocs, getDoc, doc, updateDoc, setDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+    import { collection, getDocs, getDoc, doc, setDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+    // Helper: creates config/settings if it doesn't exist yet, then merges fields
+    async function saveSettings(fields) {
+      await setDoc(doc(db,'config','settings'), fields, { merge: true });
+    }
 
     onAuthStateChanged(auth, user => { if (!user) window.location.href = 'index.html'; });
 
@@ -245,8 +266,13 @@
       document.getElementById('reg-open').checked    = settings.registrationOpen !== false;
 
       // Early Diver settings
-      document.getElementById('ed-max-count').value = settings.earlyDiverMaxCount  ?? 20;
+      document.getElementById('ed-max-count').value = settings.earlyDiverMaxCount    ?? 20;
       document.getElementById('ed-bonus-pts').value  = settings.earlyDiverBonusPoints ?? 5;
+
+      // Form URLs
+      const DEFAULT_FORM = 'https://forms.office.com/r/ZZjWfizyrM';
+      document.getElementById('form-url-newbie').value = settings.archivePearlLinkNewbie || DEFAULT_FORM;
+      document.getElementById('form-url-oldbie').value = settings.archivePearlLinkOldbie || DEFAULT_FORM;
 
       document.getElementById('loading').classList.add('hidden');
       document.getElementById('stats-grid').classList.remove('hidden');
@@ -255,29 +281,34 @@
 
     window.savePhase = async function() {
       const phase = document.getElementById('phase-select').value;
-      await updateDoc(doc(db,'config','settings'), { currentPhase: phase });
+      await saveSettings({ currentPhase: phase });
       showToast(`Phase updated to: ${phase}`, 'success');
     };
 
     window.toggleLeaderboard = async function() {
-      await updateDoc(doc(db,'config','settings'), { leaderboardVisible: document.getElementById('lb-visible').checked });
+      await saveSettings({ leaderboardVisible: document.getElementById('lb-visible').checked });
       showToast('Leaderboard visibility updated','success');
     };
 
     window.toggleRegistration = async function() {
-      await updateDoc(doc(db,'config','settings'), { registrationOpen: document.getElementById('reg-open').checked });
+      await saveSettings({ registrationOpen: document.getElementById('reg-open').checked });
       showToast('Registration setting updated','success');
     };
 
     window.saveEarlyDiverSettings = async function() {
-      const maxCount  = parseInt(document.getElementById('ed-max-count').value) || 20;
-      const bonusPts  = parseInt(document.getElementById('ed-bonus-pts').value)  || 5;
+      const maxCount = parseInt(document.getElementById('ed-max-count').value) || 20;
+      const bonusPts = parseInt(document.getElementById('ed-bonus-pts').value)  || 5;
       if (maxCount < 1 || bonusPts < 1) { showToast('Giá trị không hợp lệ!','error'); return; }
-      await updateDoc(doc(db,'config','settings'), {
-        earlyDiverMaxCount:    maxCount,
-        earlyDiverBonusPoints: bonusPts
-      });
+      await saveSettings({ earlyDiverMaxCount: maxCount, earlyDiverBonusPoints: bonusPts });
       showToast(`Early Diver updated: ${maxCount} spots · +${bonusPts} pts`, 'success');
+    };
+
+    window.saveFormUrls = async function() {
+      const newbie = document.getElementById('form-url-newbie').value.trim();
+      const oldbie = document.getElementById('form-url-oldbie').value.trim();
+      if (!newbie || !oldbie) { showToast('Vui lòng nhập đủ cả 2 URL!','error'); return; }
+      await saveSettings({ archivePearlLinkNewbie: newbie, archivePearlLinkOldbie: oldbie });
+      showToast('Form URLs saved!', 'success');
     };
 
     // ── Live event helpers ─────────────────────────────────────────────────────

@@ -148,7 +148,9 @@
 
     const session = requireAuth();
     let totalMembers = 1;
-    let currentFormLink = '#';
+    // Default MS Form link — admin can override via config/settings in the admin panel
+    const DEFAULT_FORM_URL = 'https://forms.office.com/r/ZZjWfizyrM';
+    let currentFormLink = DEFAULT_FORM_URL;
     let returnModalSuppressed = false;
 
     async function load() {
@@ -172,7 +174,9 @@
       if (b02.unlocked) { document.getElementById('already-done').classList.remove('hidden'); return; }
 
       const isNewbie = member.status === 'newbie';
-      currentFormLink = isNewbie ? (settings.archivePearlLinkNewbie||'#') : (settings.archivePearlLinkOldbie||'#');
+      currentFormLink = isNewbie
+        ? (settings.archivePearlLinkNewbie || DEFAULT_FORM_URL)
+        : (settings.archivePearlLinkOldbie || DEFAULT_FORM_URL);
       const desc = isNewbie
         ? 'Là Newbie, bạn cần hoàn thành Microsoft Form để Ban Nhân Sự cập nhật thông tin.'
         : 'Là Oldbie, bạn cần hoàn thành SAT Reflection Survey để chia sẻ cảm nhận về hành trình SAT.';
@@ -201,10 +205,6 @@
     }
 
     window.openForm = async function() {
-      if (!currentFormLink || currentFormLink === '#') {
-        showToast('Link form chưa được cấu hình. Liên hệ BTC!', 'error');
-        return;
-      }
       window.open(currentFormLink, '_blank', 'noopener,noreferrer');
       // Mark in localStorage so focus-return can detect it
       localStorage.setItem('ap_form_opened_' + session.memberId, '1');
