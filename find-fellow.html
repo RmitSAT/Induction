@@ -268,6 +268,14 @@
 
     <div id="loading" class="text-center py-10"><div class="spinner mx-auto"></div></div>
 
+    <!-- Survey gate — shown if user hasn't completed T/F survey yet -->
+    <div id="survey-gate" class="hidden card p-6 text-center mb-4">
+      <div class="text-4xl mb-3">🎯</div>
+      <h2 class="font-black text-ocean-dark text-lg mb-2">Hoàn Thành Khảo Sát Trước!</h2>
+      <p class="text-gray-500 text-sm mb-4">Bạn cần trả lời khảo sát True/False trước khi tham gia Find Your Fellow. Quay về Dashboard để hoàn thành nhé!</p>
+      <a href="dashboard.html" class="btn-primary">← Về Dashboard & Khảo Sát</a>
+    </div>
+
     <div id="badge-banner" class="hidden card p-4 mb-4 text-center" style="border:2px solid #00B4D8;background:#CAF0F8">
       <div class="text-3xl mb-1">🪸</div>
       <p class="font-black text-ocean-dark">Friendship Reef Badge đã mở khoá! 🎉</p>
@@ -513,6 +521,13 @@
       unlockedTiles  = member.unlockedTiles    || [];
 
       document.getElementById('loading').classList.add('hidden');
+
+      // Guard: user must have completed the T/F survey
+      if (!member.surveyCompleted) {
+        document.getElementById('survey-gate').classList.remove('hidden');
+        return;
+      }
+
       document.getElementById('rules-card').classList.remove('hidden');
       updateProgress(); renderTiles();
       document.getElementById('tile-grid').classList.remove('hidden');
@@ -652,9 +667,20 @@
           showVerifyResult('⚠️','Người này đã xác nhận mảnh này rồi!','Thử mảnh khác.','error'); return;
         }
 
+        // Check target has completed the survey
+        if (!target.surveyCompleted) {
+          showVerifyResult('⏳',`${target.name.split(' ').pop()} chưa hoàn thành khảo sát!`,
+            'Bạn đó cần đăng nhập và hoàn thành khảo sát T/F trước nhé.','error');
+          return;
+        }
+
         const stmtId = statements[activeTileIdx]?.id;
-        if ((target.trueFalseAnswers||{})[stmtId] !== true) {
-          showVerifyResult('❌',`${target.name.split(' ').pop()} trả lời FALSE!`,'Tìm người trả lời TRUE nhé.','error');
+        const answer = (target.trueFalseAnswers||{})[stmtId];
+        if (answer !== true) {
+          const msg = answer === false
+            ? `${target.name.split(' ').pop()} đã chọn FALSE cho câu này!`
+            : `${target.name.split(' ').pop()} chưa trả lời câu này!`;
+          showVerifyResult('❌', msg, 'Tìm người trả lời TRUE nhé.', 'error');
           await logScan(target.id, false); return;
         }
 

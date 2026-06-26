@@ -88,18 +88,23 @@
           </ol>
         </div>
 
-        <a id="form-link" href="#" target="_blank" rel="noopener" class="btn-primary mb-3 block text-center">
+        <button id="form-link-btn" onclick="openForm()" class="btn-primary mb-2 w-full">
           📝 Mở Form / Khảo Sát
-        </a>
+        </button>
+        <p id="form-opened-hint" class="hidden text-center text-xs text-ocean-teal font-bold mb-3">
+          ✓ Form đã mở — điền xong thì quay lại đây nhé!
+        </p>
       </div>
 
-      <div class="card p-5">
+      <!-- Fallback manual confirm (shown after form opened) -->
+      <div id="manual-confirm-card" class="card p-5 hidden">
         <h3 class="font-black text-ocean-dark mb-3">Xác Nhận Hoàn Thành</h3>
-        <label class="flex items-start gap-3 cursor-pointer">
+        <p class="text-xs text-gray-500 mb-3">Nếu màn hình chờ không tự bật lên sau khi bạn submit form, hãy bấm nút bên dưới.</p>
+        <label class="flex items-start gap-3 cursor-pointer mb-4">
           <input type="checkbox" id="confirm-check" class="mt-1 w-5 h-5 accent-ocean-mid" onchange="toggleConfirmBtn()">
-          <span class="text-sm text-gray-600">Tôi đã hoàn thành và submit form/khảo sát theo yêu cầu</span>
+          <span class="text-sm text-gray-600">Tôi đã thấy <strong>"Your response was submitted."</strong> trên màn hình form</span>
         </label>
-        <button id="confirm-btn" onclick="confirmCompletion()" disabled class="btn-primary mt-4">
+        <button id="confirm-btn" onclick="confirmCompletion()" disabled class="btn-primary">
           🐚 Nhận Archive Pearl Badge
         </button>
       </div>
@@ -110,6 +115,20 @@
       </div>
     </div>
 
+  </div>
+
+  <!-- Return-from-form detection modal -->
+  <div id="return-modal" class="hidden fixed inset-0 bg-black/70 z-50 flex items-end justify-center p-0">
+    <div class="bg-white rounded-t-3xl w-full max-w-sm p-6 text-center" style="padding-bottom:calc(1.5rem + env(safe-area-inset-bottom))">
+      <div class="text-5xl mb-3">🐚</div>
+      <h3 class="font-black text-ocean-dark text-xl mb-2">Chào mừng trở lại!</h3>
+      <p class="text-gray-600 text-sm mb-1">Hệ thống nhận ra bạn vừa quay lại từ trang form.</p>
+      <p class="text-gray-700 text-sm mb-5">Bạn có thấy thông báo <br><strong class="text-ocean-mid">"Your response was submitted."</strong><br>trên màn hình form không?</p>
+      <div class="flex flex-col gap-3">
+        <button onclick="confirmReturnDone()" class="btn-primary">✅ Rồi! Tôi đã submit xong</button>
+        <button onclick="closeReturnModal()" class="btn-secondary">⏰ Chưa, tôi cần điền tiếp</button>
+      </div>
+    </div>
   </div>
 
   <nav class="bottom-nav">
@@ -129,6 +148,8 @@
 
     const session = requireAuth();
     let totalMembers = 1;
+    let currentFormLink = '#';
+    let returnModalSuppressed = false;
 
     async function load() {
       const [memberSnap, settingsSnap, badgeSnap, membersSnap] = await Promise.all([
@@ -151,15 +172,66 @@
       if (b02.unlocked) { document.getElementById('already-done').classList.remove('hidden'); return; }
 
       const isNewbie = member.status === 'newbie';
-      const link = isNewbie ? (settings.archivePearlLinkNewbie||'#') : (settings.archivePearlLinkOldbie||'#');
+      currentFormLink = isNewbie ? (settings.archivePearlLinkNewbie||'#') : (settings.archivePearlLinkOldbie||'#');
       const desc = isNewbie
-        ? 'Là Newbie, bạn cần hoàn thành Zoho Member Information Form để Ban Nhân Sự cập nhật thông tin.'
+        ? 'Là Newbie, bạn cần hoàn thành Microsoft Form để Ban Nhân Sự cập nhật thông tin.'
         : 'Là Oldbie, bạn cần hoàn thành SAT Reflection Survey để chia sẻ cảm nhận về hành trình SAT.';
 
       document.getElementById('mission-desc').textContent = desc;
-      document.getElementById('form-link').href = link;
+
+      // If they previously opened the form, show the hint + manual confirm card
+      if (member.archivePearlStatus === 'form_opened') {
+        document.getElementById('form-opened-hint').classList.remove('hidden');
+        document.getElementById('manual-confirm-card').classList.remove('hidden');
+      }
+
       document.getElementById('active-mission').classList.remove('hidden');
+
+      // Window focus = user returning from another tab (e.g., after submitting form)
+      window.addEventListener('focus', onWindowFocus);
     }
+
+    function onWindowFocus() {
+      if (returnModalSuppressed) return;
+      const flagKey = 'ap_form_opened_' + session.memberId;
+      if (localStorage.getItem(flagKey) === '1') {
+        localStorage.removeItem(flagKey);
+        setTimeout(() => showReturnModal(), 400);
+      }
+    }
+
+    window.openForm = async function() {
+      if (!currentFormLink || currentFormLink === '#') {
+        showToast('Link form chưa được cấu hình. Liên hệ BTC!', 'error');
+        return;
+      }
+      window.open(currentFormLink, '_blank', 'noopener,noreferrer');
+      // Mark in localStorage so focus-return can detect it
+      localStorage.setItem('ap_form_opened_' + session.memberId, '1');
+      // Save to DB
+      try {
+        await updateDoc(doc(db,'members',session.memberId), {
+          archivePearlStatus: 'form_opened',
+          archivePearlFormOpenedAt: serverTimestamp()
+        });
+      } catch {}
+      document.getElementById('form-opened-hint').classList.remove('hidden');
+      document.getElementById('manual-confirm-card').classList.remove('hidden');
+    };
+
+    function showReturnModal() {
+      document.getElementById('return-modal').classList.remove('hidden');
+    }
+
+    window.closeReturnModal = function() {
+      returnModalSuppressed = true;
+      document.getElementById('return-modal').classList.add('hidden');
+    };
+
+    window.confirmReturnDone = function() {
+      document.getElementById('return-modal').classList.add('hidden');
+      confirmCompletion();
+    };
 
     function updateJar(count, total) {
       const pct = total > 0 ? Math.min((count/total)*100, 100) : 0;
@@ -175,30 +247,35 @@
 
     window.confirmCompletion = async function() {
       const btn = document.getElementById('confirm-btn');
-      btn.disabled = true; btn.textContent = 'Đang xử lý...';
+      if (btn) { btn.disabled = true; btn.textContent = 'Đang xử lý...'; }
       try {
-        // Pearl drop animation
         dropPearl();
 
         const ms  = await getDoc(doc(db,'members',session.memberId));
         const cur = ms.data();
         const batch = writeBatch(db);
-        batch.update(doc(db,'members',session.memberId), { archivePearlDone:true, points:(cur.points||0)+10 });
+        batch.update(doc(db,'members',session.memberId), {
+          archivePearlDone: true,
+          archivePearlStatus: 'submitted',
+          points: (cur.points||0)+10
+        });
         batch.set(doc(db,'members',session.memberId,'badges','B02'),
           { unlocked:true, unlockedAt:serverTimestamp(), adminOverride:false, points:10 }, {merge:true});
         await batch.commit();
+
+        // Clean up form-open flag
+        localStorage.removeItem('ap_form_opened_' + session.memberId);
 
         showToast('🐚 Huy hiệu Archive Pearl đã mở khoá! +10 điểm!', 'success');
         setTimeout(() => {
           document.getElementById('active-mission').classList.add('hidden');
           document.getElementById('already-done').classList.remove('hidden');
-          // Update jar
           const prevCount = parseInt(document.getElementById('jar-count').textContent)||0;
           updateJar(prevCount+1, totalMembers);
         }, 1800);
       } catch {
         showToast('Lỗi. Thử lại nhé!', 'error');
-        btn.disabled=false; btn.textContent='🐚 Nhận Archive Pearl Badge';
+        if (btn) { btn.disabled=false; btn.textContent='🐚 Nhận Archive Pearl Badge'; }
       }
     };
 

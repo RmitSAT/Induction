@@ -84,6 +84,25 @@
       </div>
     </div>
 
+    <!-- 🤿 Early Diver Settings -->
+    <div class="card p-5 mb-6 border-2 border-orange-200">
+      <h2 class="font-black text-ocean-dark mb-1">🤿 Early Diver Bonus Settings</h2>
+      <p class="text-xs text-gray-500 mb-4">Đặt số lượng early spot và điểm thưởng cho Sứa đăng ký sớm.</p>
+      <div class="grid grid-cols-2 gap-4 mb-3">
+        <div>
+          <label class="text-sm font-bold text-ocean-dark block mb-1">Max Early Spots</label>
+          <input type="number" id="ed-max-count" min="1" max="500" class="input-field" placeholder="20">
+          <p class="text-xs text-gray-400 mt-1">Số Sứa đầu tiên nhận bonus</p>
+        </div>
+        <div>
+          <label class="text-sm font-bold text-ocean-dark block mb-1">Bonus Points</label>
+          <input type="number" id="ed-bonus-pts" min="1" max="100" class="input-field" placeholder="5">
+          <p class="text-xs text-gray-400 mt-1">Điểm thưởng thêm khi đăng ký sớm</p>
+        </div>
+      </div>
+      <button onclick="saveEarlyDiverSettings()" class="btn-primary btn-sm" style="width:auto;display:inline-block">💾 Save Early Diver Settings</button>
+    </div>
+
     <!-- ══ LIVE EVENTS CONTROL PANEL ══════════════════════════════════════ -->
     <div class="card p-5 mb-6 border-2 border-orange-300">
       <h2 class="font-black text-ocean-dark mb-4">🎮 Live Events — Push to All Members</h2>
@@ -225,6 +244,10 @@
       document.getElementById('lb-visible').checked  = settings.leaderboardVisible || false;
       document.getElementById('reg-open').checked    = settings.registrationOpen !== false;
 
+      // Early Diver settings
+      document.getElementById('ed-max-count').value = settings.earlyDiverMaxCount  ?? 20;
+      document.getElementById('ed-bonus-pts').value  = settings.earlyDiverBonusPoints ?? 5;
+
       document.getElementById('loading').classList.add('hidden');
       document.getElementById('stats-grid').classList.remove('hidden');
       document.getElementById('badge-breakdown').classList.remove('hidden');
@@ -244,6 +267,17 @@
     window.toggleRegistration = async function() {
       await updateDoc(doc(db,'config','settings'), { registrationOpen: document.getElementById('reg-open').checked });
       showToast('Registration setting updated','success');
+    };
+
+    window.saveEarlyDiverSettings = async function() {
+      const maxCount  = parseInt(document.getElementById('ed-max-count').value) || 20;
+      const bonusPts  = parseInt(document.getElementById('ed-bonus-pts').value)  || 5;
+      if (maxCount < 1 || bonusPts < 1) { showToast('Giá trị không hợp lệ!','error'); return; }
+      await updateDoc(doc(db,'config','settings'), {
+        earlyDiverMaxCount:    maxCount,
+        earlyDiverBonusPoints: bonusPts
+      });
+      showToast(`Early Diver updated: ${maxCount} spots · +${bonusPts} pts`, 'success');
     };
 
     // ── Live event helpers ─────────────────────────────────────────────────────

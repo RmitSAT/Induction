@@ -101,11 +101,8 @@
         </div>
       </div>
 
-      <!-- T/F Ice-breaker questions -->
-      <div class="border-t border-foam-blue pt-4 mb-5">
-        <p class="font-bold text-ocean-dark mb-1">🎯 Câu hỏi Ice-breaker (True/False)</p>
-        <p class="text-xs text-gray-500 mb-3">Dùng cho hoạt động "Find Your Fellow Sứa" sau này!</p>
-        <div id="tf-questions" class="space-y-3"></div>
+      <div class="bg-sky-blue/10 border border-sky-blue rounded-xl p-3 mb-5 text-sm text-ocean-dark">
+        🎯 Khảo sát <strong>True/False</strong> sẽ xuất hiện sau khi bạn đăng nhập lần đầu tiên!
       </div>
 
       <div class="flex gap-3">
@@ -189,51 +186,14 @@
     import { db, compressToBase64 } from './js/firebase-config.js';
     import { setSession } from './js/auth.js';
     import {
-      collection, query, where, getDocs, doc, writeBatch, serverTimestamp
+      collection, query, where, getDocs, getDoc, doc, writeBatch, serverTimestamp
     } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
     // State
     let selectedStatus  = '';
     let selectedSatType = '';
     let capturedBlob    = null;
-    let tfAnswers       = {};
-    let tfStatements    = [];
     let stream          = null;
-
-    // Load T/F statements
-    async function loadTFStatements() {
-      const snap = await getDocs(collection(db, 'trueFalseStatements'));
-      tfStatements = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b) => a.order - b.order);
-      const container = document.getElementById('tf-questions');
-      if (tfStatements.length === 0) {
-        container.innerHTML = '<p class="text-xs text-gray-400">Chưa có câu hỏi. Liên hệ ban tổ chức.</p>';
-        return;
-      }
-      container.innerHTML = tfStatements.map((s,i) => `
-        <div class="border border-foam-blue rounded-xl p-3 bg-mist-blue">
-          <p class="font-semibold text-ocean-dark text-sm mb-2">${i+1}. ${s.statement}</p>
-          <div class="flex gap-2">
-            <button class="tf-btn flex-1 py-2 rounded-lg font-bold text-sm border-2 border-foam-blue bg-white transition-all"
-              data-id="${s.id}" data-val="true" onclick="selectTF(this)">✅ True</button>
-            <button class="tf-btn flex-1 py-2 rounded-lg font-bold text-sm border-2 border-foam-blue bg-white transition-all"
-              data-id="${s.id}" data-val="false" onclick="selectTF(this)">❌ False</button>
-          </div>
-        </div>`).join('');
-    }
-    loadTFStatements();
-
-    window.selectTF = function(btn) {
-      const id  = btn.dataset.id;
-      const val = btn.dataset.val === 'true';
-      tfAnswers[id] = val;
-      const siblings = btn.closest('.flex').querySelectorAll('.tf-btn');
-      siblings.forEach(b => {
-        b.classList.remove('bg-ocean-mid', 'text-white', 'border-ocean-mid');
-        b.classList.add('bg-white', 'border-foam-blue');
-      });
-      btn.classList.remove('bg-white', 'border-foam-blue');
-      btn.classList.add('bg-ocean-mid', 'text-white', 'border-ocean-mid');
-    };
 
     window.selectStatus = function(el) {
       document.querySelectorAll('.status-card').forEach(c => c.classList.remove('selected'));
@@ -255,9 +215,6 @@
       if (n === 3) {
         if (!selectedStatus)  { showToast('Vui lòng chọn Newbie / Oldbie!', 'error'); return; }
         if (!selectedSatType) { showToast('Vui lòng chọn Type of SAT!', 'error'); return; }
-        if (tfStatements.length > 0 && Object.keys(tfAnswers).length < tfStatements.length) {
-          showToast('Hãy trả lời tất cả câu hỏi True/False!', 'error'); return;
-        }
       }
       [1,2,3].forEach(i => {
         document.getElementById(`step-${i}`).classList.add('hidden');
@@ -352,7 +309,8 @@
           bondingCompleted: false,
           fellowProgress: 0,
           unlockedTiles: [],
-          trueFalseAnswers: tfAnswers,
+          trueFalseAnswers: {},
+          surveyCompleted: false,
           points: 10,
           createdAt: serverTimestamp()
         };
@@ -374,16 +332,21 @@
         }
         await batch.commit();
 
-        // Early Diver check — first 20 members get +5 bonus
+        // Early Diver check — first N members get bonus points (configurable in admin)
         let isEarlyDiver = false;
         try {
-          const countSnap = await getDocs(collection(db,'members'));
+          const [countSnap, settingsSnap] = await Promise.all([
+            getDocs(collection(db,'members')),
+            getDoc(doc(db,'config','settings'))
+          ]);
+          const settings    = settingsSnap.exists() ? settingsSnap.data() : {};
+          const EARLY_LIMIT = settings.earlyDiverMaxCount    ?? 20;
+          const BONUS_PTS   = settings.earlyDiverBonusPoints ?? 5;
           const existingCount = countSnap.size; // includes the one we just wrote
-          if (existingCount <= 20) {
+          if (existingCount <= EARLY_LIMIT) {
             isEarlyDiver = true;
-            // Add 5 bonus points atomically
-            const { updateDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
-            await updateDoc(doc(db,'members',memberRef.id), { points: 15, earlyDiver: true });
+            const { updateDoc: ud } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+            await ud(doc(db,'members',memberRef.id), { points: 10 + BONUS_PTS, earlyDiver: true });
           }
         } catch {}
 
