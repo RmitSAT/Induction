@@ -930,3 +930,79 @@ body {
   transition: background 0.2s; flex-shrink: 0;
 }
 .mute-btn:active { background: rgba(255,255,255,0.3); }
+
+/* ═══════════════════════════════════════════════════════════════
+   OCEAN IMMERSION THEME — wave transitions, creatures, ambience
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Wave page-transition overlay ──────────────────────────── */
+#ocean-wave-overlay {
+  position: fixed; inset: 0; z-index: 10000; pointer-events: none;
+  background: radial-gradient(ellipse at 40% 60%, #0096C7 0%, #023E8A 45%, #03045E 100%);
+  clip-path: circle(150% at 50% 50%);
+  transition: none;
+}
+#ocean-wave-overlay.ow-hide {
+  clip-path: circle(0% at 50% 50%);
+  transition: clip-path 0.55s cubic-bezier(0.77, 0, 0.175, 1);
+}
+#ocean-wave-overlay.ow-show {
+  clip-path: circle(150% at 50% 50%);
+  transition: clip-path 0.48s cubic-bezier(0.77, 0, 0.175, 1);
+}
+.ow-jellyfish {
+  position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 72px; opacity: 0.35;
+  animation: owj-pulse 0.6s ease-out;
+}
+@keyframes owj-pulse {
+  0%  { opacity: 0; transform: translate(-50%,-50%) scale(0.2); }
+  60% { opacity: 0.45; transform: translate(-50%,-50%) scale(1.15); }
+  100%{ opacity: 0.35; transform: translate(-50%,-50%) scale(1); }
+}
+
+/* ── Underwater caustic depth ───────────────────────────────── */
+#ocean-depth-bg {
+  position: fixed; bottom: 0; left: 0; right: 0; height: 180px;
+  pointer-events: none; z-index: 0;
+  background: linear-gradient(to top, rgba(3,4,94,0.18) 0%, transparent 100%);
+}
+#ocean-caustic {
+  position: fixed; inset: 0; pointer-events: none; z-index: 0;
+  background:
+    radial-gradient(ellipse 220% 90% at 15% 20%, rgba(0,180,216,0.045) 0%, transparent 55%),
+    radial-gradient(ellipse 180% 110% at 85% 80%, rgba(0,119,182,0.04)  0%, transparent 55%);
+  animation: caustic-drift 14s ease-in-out infinite alternate;
+}
+@keyframes caustic-drift {
+  0%   { opacity: 0.6; transform: scale(1)   translateX(0);  }
+  100% { opacity: 1;   transform: scale(1.08) translateX(12px); }
+}
+
+/* ── Ocean creatures layer ──────────────────────────────────── */
+#ocean-creatures {
+  position: fixed; inset: 0; pointer-events: none;
+  z-index: 9800; overflow: hidden;
+}
+.oc-creature {
+  position: absolute; line-height: 1; user-select: none;
+  will-change: transform; opacity: 0;
+}
+/* bubble keyframe (uses --bx custom prop set inline) */
+@keyframes oc-bubble {
+  0%   { transform: translate(0, 0);              opacity: 0.75; }
+  60%  { transform: translate(var(--bx,0px), -55vh); opacity: 0.5; }
+  100% { transform: translate(calc(var(--bx,0px)*0.6), -110vh); opacity: 0; }
+}
+
+/* ── Ocean wave footers on page bottoms ─────────────────────── */
+.ocean-wave-footer {
+  position: relative; width: 100%; overflow: hidden;
+  height: 56px; margin-top: 8px; flex-shrink: 0;
+  pointer-events: none;
+}
+.ocean-wave-footer svg { position: absolute; bottom: 0; }
+
+/* ── Responsive scrollable area breathing room ─────────────── */
+.page-content { position: relative; z-index: 1; }
