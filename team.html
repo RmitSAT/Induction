@@ -11,6 +11,17 @@
 </head>
 <body class="font-nunito bg-mist-blue">
 
+  <div id="toast-container"></div>
+
+  <!-- Battle Cry overlay (admin-triggered) -->
+  <div id="battle-cry-overlay" class="battle-cry-overlay hidden">
+    <div class="battle-cry-bg" id="battle-cry-bg"></div>
+    <div class="battle-cry-text" id="battle-cry-text">⚔️ TEAM BATTLE CRY!</div>
+  </div>
+
+  <!-- Crew Sync flash (admin-triggered) -->
+  <div id="crew-sync-flash" class="crew-sync-flash hidden"></div>
+
   <header class="top-header">
     <a href="dashboard.html" class="text-foam-blue font-bold text-sm">&larr; Home</a>
     <span class="text-white font-black">🚢 Team của Bạn</span>
@@ -74,6 +85,7 @@
   <script type="module">
     import { requireAuth } from './js/auth.js';
     import { db } from './js/firebase-config.js';
+    import { startLiveEventListener } from './js/live-events.js';
     import { doc, getDoc, getDocs, collection, query, where } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
     const session = requireAuth();
@@ -128,6 +140,62 @@
     }
 
     load().catch(() => { document.getElementById('loading').innerHTML = '<p class="text-coral-red font-bold text-center">Lỗi tải dữ liệu.</p>'; });
+
+    // ── Live event listeners ────────────────────────────────────────────────
+    let myTeamId = null;
+    (async () => {
+      try {
+        const memberSnap = await getDoc(doc(db,'members',session.memberId));
+        myTeamId = memberSnap.data()?.teamId || null;
+      } catch {}
+    })();
+
+    startLiveEventListener((type, payload) => {
+      if (type === 'battle-cry') {
+        // Only show if event targets my team (or all teams)
+        if (!payload.teamId || payload.teamId === myTeamId) {
+          triggerBattleCry(payload.teamColor || '#0077B6', payload.teamName || 'Team');
+        }
+      }
+      if (type === 'crew-sync') {
+        if (!payload.teamId || payload.teamId === myTeamId) {
+          triggerCrewSync(payload.teamColor || '#00B4D8');
+        }
+      }
+    });
+
+    function triggerBattleCry(color, teamName) {
+      const overlay = document.getElementById('battle-cry-overlay');
+      document.getElementById('battle-cry-bg').style.background = color;
+      document.getElementById('battle-cry-text').textContent = `⚔️ ${teamName} BATTLE CRY!`;
+      overlay.classList.remove('hidden');
+      playBattleCrySound();
+      setTimeout(() => overlay.classList.add('hidden'), 3500);
+    }
+
+    function triggerCrewSync(color) {
+      const flash = document.getElementById('crew-sync-flash');
+      flash.style.background = color;
+      flash.classList.remove('hidden');
+      setTimeout(() => flash.classList.add('hidden'), 1800);
+    }
+
+    function playBattleCrySound() {
+      try {
+        const ctx = new (window.AudioContext||window.webkitAudioContext)();
+        const freq = [110, 140, 175, 220];
+        freq.forEach((f,i) => {
+          const o=ctx.createOscillator(), g=ctx.createGain();
+          o.type='sawtooth'; o.connect(g); g.connect(ctx.destination);
+          o.frequency.setValueAtTime(f, ctx.currentTime+i*0.15);
+          g.gain.setValueAtTime(0.25, ctx.currentTime+i*0.15);
+          g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime+i*0.15+0.5);
+          o.start(ctx.currentTime+i*0.15); o.stop(ctx.currentTime+i*0.15+0.55);
+        });
+      } catch {}
+    }
+
+    function showToast(msg,type='info'){const c=document.getElementById('toast-container');const t=document.createElement('div');t.className=`toast toast-${type}`;t.textContent=msg;c.appendChild(t);setTimeout(()=>t.classList.add('show'),10);setTimeout(()=>{t.classList.remove('show');setTimeout(()=>t.remove(),300);},3500);}
   </script>
 </body>
 </html>

@@ -450,9 +450,22 @@
   </nav>
 
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <!-- Tile Storm bar -->
+  <div id="tile-storm-bar" class="tile-storm-bar hidden" style="position:fixed;top:0;left:0;right:0;z-index:9000">
+    <div class="flex items-center justify-between px-4 py-2">
+      <span style="color:#1A1A1A;font-weight:900;font-size:13px">⚡ TILE STORM! Mở khoá nhanh hơn!</span>
+      <span id="storm-timer" class="tile-storm-timer">3:00</span>
+    </div>
+  </div>
+  <!-- Duo Spark toast -->
+  <div id="duo-spark-toast" class="duo-spark-toast hidden" style="position:fixed;bottom:80px;left:50%;transform:translateX(-50%);z-index:9000;padding:12px 20px;border-radius:12px;font-weight:900;font-size:13px;white-space:nowrap">
+    💞 Duo Spark! Sứa kia cũng scan bạn!
+  </div>
+
   <script type="module">
     import { requireAuth } from './js/auth.js';
     import { db } from './js/firebase-config.js';
+    import { startLiveEventListener } from './js/live-events.js';
     import {
       doc, getDoc, getDocs, collection, query, where, addDoc,
       updateDoc, setDoc, serverTimestamp, runTransaction, arrayUnion, onSnapshot
@@ -507,6 +520,8 @@
         document.getElementById('badge-banner').classList.remove('hidden');
 
       if (localStorage.getItem('sat_radar_consent') === 'true') startRadar();
+      // Draw constellation if already has unlocked tiles
+      if (unlockedTiles.length >= 2) setTimeout(() => drawConstellation(unlockedTiles), 500);
     }
 
     // ── Progress ─────────────────────────────────────────────────────────────
@@ -658,6 +673,12 @@
         showVerifyResult('🎉',`${target.name.split(' ').pop()} nói TRUE! Mảnh #${activeTileIdx+1} mở!`,'','success');
         updateProgress(); renderTiles(); spawnConfetti();
         if (newUnlocked.length >= fellowRequired) await unlockFriendshipBadge();
+        // Draw constellation when 6+ tiles unlocked
+        if (newUnlocked.length >= 2) setTimeout(() => drawConstellation(newUnlocked), 300);
+        // Check Duo Spark
+        checkDuoSpark(target.id);
+        // Check Social Butterfly
+        if (newUnlocked.length >= 6) checkSocialButterfly();
 
       } catch { showVerifyResult('⚠️','Lỗi kết nối','Thử lại nhé!','error'); }
     }
@@ -1110,6 +1131,99 @@
       e => { if(e.target===e.currentTarget) closeModal(); });
     document.getElementById('consent-modal').addEventListener('click',
       e => { if(e.target===e.currentTarget) skipRadar(); });
+
+    // ── Constellation SVG: draw lines between unlocked tile positions ─────────
+    function drawConstellation(unlockedIndices) {
+      if (unlockedIndices.length < 2) return;
+      const tileEls = document.querySelectorAll('.tile-card');
+      if (!tileEls.length) return;
+      const existing = document.getElementById('constellation-svg');
+      if (existing) existing.remove();
+      const grid = document.getElementById('tile-grid');
+      if (!grid) return;
+      const gridRect = grid.getBoundingClientRect();
+      const scrollY  = window.scrollY;
+      const pts = [];
+      unlockedIndices.forEach(i => {
+        const el = tileEls[i];
+        if (!el) return;
+        const r = el.getBoundingClientRect();
+        pts.push({ x: r.left - gridRect.left + r.width/2, y: r.top - gridRect.top + r.height/2 + scrollY });
+      });
+      if (pts.length < 2) return;
+      const svg = document.createElementNS('http://www.w3.org/2000/svg','svg');
+      svg.id = 'constellation-svg';
+      svg.classList.add('constellation-svg');
+      svg.setAttribute('style','position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:1;overflow:visible');
+      for (let a = 0; a < pts.length; a++) {
+        for (let b = a+1; b < pts.length; b++) {
+          const ln = document.createElementNS('http://www.w3.org/2000/svg','line');
+          ln.classList.add('constellation-line');
+          ln.setAttribute('x1', pts[a].x); ln.setAttribute('y1', pts[a].y);
+          ln.setAttribute('x2', pts[b].x); ln.setAttribute('y2', pts[b].y);
+          svg.appendChild(ln);
+        }
+      }
+      grid.style.position = 'relative';
+      grid.appendChild(svg);
+    }
+
+    // ── Duo Spark: check if target also scanned me ────────────────────────────
+    async function checkDuoSpark(targetId) {
+      try {
+        const scanSnap = await getDoc(doc(db,'members',targetId,'fellowScans',session.memberId));
+        if (scanSnap.exists() && (scanSnap.data().tilesHelped||[]).length > 0) {
+          const toast = document.getElementById('duo-spark-toast');
+          toast.classList.remove('hidden');
+          setTimeout(() => toast.classList.add('hidden'), 4000);
+        }
+      } catch {}
+    }
+
+    // ── Social Butterfly: check if unlocked tiles with 6+ different people ────
+    async function checkSocialButterfly() {
+      try {
+        const scans = await getDocs(collection(db,'members',session.memberId,'fellowScans'));
+        if (scans.size >= 6) {
+          const snap = await getDoc(doc(db,'members',session.memberId));
+          if (!snap.data()?.achievements?.socialButterfly) {
+            await updateDoc(doc(db,'members',session.memberId),
+              {'achievements.socialButterfly': true});
+            showToast('🦋 Social Butterfly! Bạn đã kết nối với 6+ Sứa khác!','success');
+          }
+        }
+      } catch {}
+    }
+
+    // ── Tile Storm listener ───────────────────────────────────────────────────
+    let stormInterval = null;
+    startLiveEventListener((type, payload) => {
+      if (type === 'tile-storm') {
+        const dur = (payload.durationSeconds || 180);
+        startTileStorm(dur);
+      }
+    });
+
+    function startTileStorm(seconds) {
+      const bar   = document.getElementById('tile-storm-bar');
+      const timer = document.getElementById('storm-timer');
+      bar.classList.remove('hidden');
+      if (stormInterval) clearInterval(stormInterval);
+      let remaining = seconds;
+      const update = () => {
+        const m = Math.floor(remaining/60);
+        const s = remaining%60;
+        timer.textContent = `${m}:${String(s).padStart(2,'0')}`;
+        if (remaining <= 0) {
+          clearInterval(stormInterval);
+          bar.classList.add('hidden');
+        }
+        remaining--;
+      };
+      update();
+      stormInterval = setInterval(update, 1000);
+      showToast('⚡ TILE STORM bắt đầu! 3 phút mở khoá tất cả!','success');
+    }
 
     load();
   </script>

@@ -539,6 +539,309 @@ body {
   cursor: pointer;
 }
 
+/* ══════════════════════════════════════════════════════
+   NEW GAME MECHANICS — added Jun 2026
+   ══════════════════════════════════════════════════════ */
+
+/* ── Screen shake (wrong quiz answer) ── */
+@keyframes screen-shake {
+  0%,100% { transform: translateX(0); }
+  15%  { transform: translateX(-8px) rotate(-1deg); }
+  30%  { transform: translateX(8px)  rotate(1deg); }
+  45%  { transform: translateX(-6px) rotate(-0.5deg); }
+  60%  { transform: translateX(6px)  rotate(0.5deg); }
+  75%  { transform: translateX(-3px); }
+  90%  { transform: translateX(3px); }
+}
+.shake { animation: screen-shake 0.5s ease; }
+
+/* ── Combo burst banner ── */
+.combo-banner {
+  position: fixed; left: 50%; top: 50%;
+  transform: translate(-50%,-50%) scale(0);
+  background: linear-gradient(135deg, #F59E0B, #FBBF24);
+  color: #03045E; font-weight: 900; font-size: 2rem;
+  padding: 16px 32px; border-radius: 20px;
+  box-shadow: 0 8px 40px rgba(245,158,11,0.6);
+  z-index: 9999; pointer-events: none; white-space: nowrap;
+  animation: combo-pop 0.6s cubic-bezier(.36,.07,.19,.97) forwards;
+}
+@keyframes combo-pop {
+  0%  { transform: translate(-50%,-50%) scale(0) rotate(-6deg); opacity:0; }
+  60% { transform: translate(-50%,-50%) scale(1.1) rotate(2deg); opacity:1; }
+  80% { transform: translate(-50%,-50%) scale(0.96); }
+  100%{ transform: translate(-50%,-50%) scale(1); opacity:1; }
+}
+
+/* ── Speed run badge chip ── */
+.speed-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: linear-gradient(90deg, #F59E0B, #FBBF24);
+  color: #03045E; font-weight: 900; font-size: 11px;
+  padding: 2px 8px; border-radius: 20px;
+}
+
+/* ── BOL flip card ── */
+.flip-scene {
+  perspective: 900px;
+  width: 100%; min-height: 120px;
+}
+.flip-card {
+  width: 100%; height: 100%;
+  position: relative;
+  transform-style: preserve-3d;
+  transition: transform 0.55s cubic-bezier(.4,0,.2,1);
+  cursor: pointer;
+}
+.flip-scene.flipped .flip-card { transform: rotateY(180deg); }
+.flip-card-front, .flip-card-back {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  backface-visibility: hidden; -webkit-backface-visibility: hidden;
+  border-radius: 16px; padding: 20px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+}
+.flip-card-front {
+  background: linear-gradient(135deg, #023E8A, #0077B6);
+  border: 2px solid rgba(173,232,244,0.3);
+}
+.flip-card-back {
+  background: #fff;
+  border: 2px solid #00B4D8;
+  transform: rotateY(180deg);
+}
+.flip-question-mark { font-size: 3rem; color: rgba(173,232,244,0.8); }
+
+/* ── BOL Spotlight overlay ── */
+.bol-spotlight-overlay {
+  position: fixed; inset: 0; z-index: 9998;
+  background: rgba(0,0,0,0.9);
+  display: flex; align-items: center; justify-content: center;
+  flex-direction: column; text-align: center;
+  animation: spotlight-in 0.4s ease;
+}
+@keyframes spotlight-in { from { opacity:0; } to { opacity:1; } }
+.bol-spotlight-card {
+  background: linear-gradient(160deg, #010c1a, #023E8A);
+  border: 2px solid #00B4D8;
+  border-radius: 24px; padding: 40px 32px;
+  box-shadow: 0 0 60px rgba(0,180,216,0.4);
+  max-width: 320px; width: 90%;
+  animation: spotlight-pop 0.5s cubic-bezier(.36,.07,.19,.97);
+}
+@keyframes spotlight-pop { 0%{transform:scale(0.6);opacity:0} 70%{transform:scale(1.05)} 100%{transform:scale(1);opacity:1} }
+
+/* ── Pearl drop animation ── */
+@keyframes pearl-fall {
+  0%   { top: -60px; opacity:1; transform: translateX(-50%) scale(0.5); }
+  60%  { top: calc(50% - 30px); transform: translateX(-50%) scale(1); }
+  75%  { transform: translateX(-50%) scale(1.2, 0.8); }
+  100% { top: calc(50% - 10px); transform: translateX(-50%) scale(1); }
+}
+.pearl-drop-el {
+  position: fixed; left: 50%; font-size: 52px;
+  pointer-events: none; z-index: 9999;
+  animation: pearl-fall 0.9s cubic-bezier(.25,.46,.45,.94) forwards;
+}
+/* Pearl jar */
+.pearl-jar-track {
+  background: rgba(173,232,244,0.25);
+  border: 2px solid #ADE8F4;
+  border-radius: 0 0 30px 30px; overflow: hidden;
+  height: 14px; margin-top: 6px;
+}
+.pearl-jar-fill {
+  height: 100%; background: linear-gradient(90deg, #00B4D8, #ADE8F4);
+  border-radius: 0 0 30px 30px;
+  transition: width 0.8s cubic-bezier(.25,.46,.45,.94);
+}
+
+/* ── Milestone shockwave ── */
+.shockwave-overlay {
+  position: fixed; inset: 0; z-index: 9997;
+  pointer-events: none; overflow: hidden;
+}
+.shockwave-ring {
+  position: absolute; left: 50%; top: 50%;
+  width: 20px; height: 20px;
+  margin: -10px 0 0 -10px;
+  border-radius: 50%;
+  border: 3px solid rgba(0,229,255,0.8);
+  animation: shockwave-expand 1.2s ease-out forwards;
+}
+@keyframes shockwave-expand {
+  0%  { transform:scale(1); opacity:1; }
+  100%{ transform:scale(80); opacity:0; }
+}
+.shockwave-text {
+  position: absolute; left:50%; top:50%;
+  transform: translate(-50%,-50%);
+  color: #fff; font-weight:900; font-size:2rem;
+  text-align:center; pointer-events:none;
+  text-shadow: 0 0 20px rgba(0,180,216,1);
+  animation: shockwave-text-pop 2.5s ease forwards;
+}
+@keyframes shockwave-text-pop {
+  0%  {transform:translate(-50%,-50%) scale(0);opacity:0}
+  20% {transform:translate(-50%,-50%) scale(1.1);opacity:1}
+  75% {transform:translate(-50%,-50%) scale(1);opacity:1}
+  100%{transform:translate(-50%,-50%) scale(1);opacity:0}
+}
+
+/* ── B07 Hall of Fame ── */
+.hof-overlay {
+  position: fixed; inset: 0; z-index: 9999;
+  background: #000; display: flex; align-items: center;
+  justify-content: center; flex-direction: column; text-align: center;
+}
+.hof-name {
+  font-size: clamp(2rem, 10vw, 4rem); font-weight: 900;
+  background: linear-gradient(135deg, #F59E0B, #FBBF24, #FDE68A, #F59E0B);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
+  filter: drop-shadow(0 0 20px rgba(245,158,11,0.7));
+  animation: hof-name-in 0.8s 0.4s cubic-bezier(.36,.07,.19,.97) both;
+}
+@keyframes hof-name-in {
+  0%  { transform: scale(0.3) rotate(-5deg); opacity:0; }
+  60% { transform: scale(1.08); opacity:1; }
+  100%{ transform: scale(1); opacity:1; }
+}
+.hof-gold-particle {
+  position: absolute; pointer-events:none;
+  font-size: 16px; animation: hof-particle 1.4s ease forwards;
+}
+@keyframes hof-particle {
+  0%  { transform:translate(0,0) rotate(0deg); opacity:1; }
+  100%{ transform:translate(var(--tx),var(--ty)) rotate(var(--tr)); opacity:0; }
+}
+
+/* ── Battle cry overlay (B06 team unlock) ── */
+.battle-cry-overlay {
+  position: fixed; inset: 0; z-index: 9998;
+  display: flex; align-items: center; justify-content: center;
+  flex-direction: column; text-align: center; pointer-events: none;
+}
+.battle-cry-bg {
+  position: absolute; inset: 0;
+  animation: bcry-pulse 0.3s ease 6 alternate;
+}
+@keyframes bcry-pulse { from{opacity:0.7} to{opacity:1} }
+.battle-cry-text {
+  position: relative; z-index: 1;
+  font-weight: 900; font-size: clamp(1.8rem,8vw,3rem);
+  color: #fff; text-shadow: 0 4px 20px rgba(0,0,0,0.6);
+  animation: bcry-text-in 0.6s cubic-bezier(.36,.07,.19,.97);
+  padding: 24px 32px;
+}
+@keyframes bcry-text-in { 0%{transform:scale(0.5);opacity:0} 70%{transform:scale(1.05)} 100%{transform:scale(1);opacity:1} }
+
+/* ── Team racing bars (leaderboard) ── */
+.racing-bar-wrap { margin-bottom: 14px; }
+.racing-bar-label {
+  display: flex; justify-content: space-between; align-items: center;
+  font-size: 13px; font-weight: 800; color: #023E8A; margin-bottom: 5px;
+}
+.racing-bar-track {
+  background: #E0F2FE; border-radius: 99px; height: 18px;
+  overflow: visible; position: relative;
+}
+.racing-bar-fill {
+  height: 100%; border-radius: 99px; position: relative;
+  background: linear-gradient(90deg, #0077B6, #00B4D8);
+  transition: width 1.2s cubic-bezier(.25,.46,.45,.94);
+  min-width: 20px;
+}
+.racing-bar-fill::after {
+  content: '🚢'; position: absolute; right: -16px; top: -3px;
+  font-size: 20px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+}
+.racing-bar-fill.rank-1 { background: linear-gradient(90deg, #D97706, #F59E0B); }
+.racing-bar-fill.rank-1::after { content: '🥇'; }
+.racing-bar-fill.rank-2 { background: linear-gradient(90deg, #64748B, #94A3B8); }
+.racing-bar-fill.rank-2::after { content: '🥈'; }
+.racing-bar-fill.rank-3 { background: linear-gradient(90deg, #92400E, #D97706); }
+.racing-bar-fill.rank-3::after { content: '🥉'; }
+
+/* SAT Type battle bars */
+.type-bar-fill.type-spotlight { background: linear-gradient(90deg, #7C3AED, #A78BFA); }
+.type-bar-fill.type-spotlight::after { content: '⭐'; }
+.type-bar-fill.type-flow       { background: linear-gradient(90deg, #0077B6, #00B4D8); }
+.type-bar-fill.type-flow::after { content: '🌊'; }
+.type-bar-fill.type-care       { background: linear-gradient(90deg, #DB2777, #F472B6); }
+.type-bar-fill.type-care::after { content: '💙'; }
+.type-bar-fill.type-creative   { background: linear-gradient(90deg, #D97706, #FBBF24); }
+.type-bar-fill.type-creative::after { content: '🎨'; }
+.type-bar-fill.type-calm       { background: linear-gradient(90deg, #059669, #34D399); }
+.type-bar-fill.type-calm::after { content: '🧘'; }
+
+/* ── Early Diver chip ── */
+.early-diver-bar {
+  background: linear-gradient(90deg, #D97706, #F59E0B);
+  color: #fff; font-weight: 800; font-size: 13px;
+  padding: 10px 18px; border-radius: 12px; text-align: center;
+  margin-bottom: 14px;
+  box-shadow: 0 4px 16px rgba(245,158,11,0.4);
+}
+.early-diver-bar .spots { font-size: 24px; font-weight: 900; }
+
+/* ── Type reveal card flip (register success) ── */
+.type-reveal-scene { perspective: 1000px; width: 100%; margin: 20px 0; }
+.type-reveal-card {
+  width: 100%; position: relative; transform-style: preserve-3d;
+  transition: transform 0.8s cubic-bezier(.4,0,.2,1);
+}
+.type-reveal-card.flipped { transform: rotateY(180deg); }
+.type-reveal-front, .type-reveal-back {
+  backface-visibility: hidden; -webkit-backface-visibility: hidden;
+  border-radius: 16px; padding: 24px; text-align: center; width: 100%;
+}
+.type-reveal-front { background: linear-gradient(135deg, #03045E, #0077B6); }
+.type-reveal-back  { position: absolute; inset: 0; transform: rotateY(180deg);
+  background: linear-gradient(135deg, #0077B6, #00B4D8); }
+
+/* ── Tile storm overlay ── */
+.tile-storm-bar {
+  background: linear-gradient(90deg, #DC2626, #F59E0B);
+  color: #fff; font-weight: 900; font-size: 13px;
+  padding: 10px 18px; border-radius: 12px;
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 12px; box-shadow: 0 4px 16px rgba(220,38,38,0.4);
+  animation: storm-flash 0.8s ease infinite;
+}
+@keyframes storm-flash { 0%,100%{box-shadow:0 4px 16px rgba(220,38,38,0.4)} 50%{box-shadow:0 4px 32px rgba(245,158,11,0.7)} }
+.tile-storm-timer { font-size: 20px; font-weight: 900; font-family: 'Courier New', monospace; }
+
+/* ── Sứa Constellation lines ── */
+.constellation-svg {
+  position: absolute; inset: 0;
+  pointer-events: none; z-index: 5;
+}
+.constellation-line { stroke: #00B4D8; stroke-width: 1.5; stroke-dasharray: 200; stroke-dashoffset: 200;
+  animation: draw-line 0.6s ease forwards; opacity: 0.5; }
+@keyframes draw-line { to { stroke-dashoffset: 0; } }
+
+/* ── Crew sync flash ── */
+.crew-sync-flash {
+  position: fixed; inset: 0; z-index: 9990;
+  background: rgba(0,119,182,0.4); pointer-events: none;
+  animation: crew-flash 0.6s ease;
+}
+@keyframes crew-flash { 0%,100%{opacity:0} 30%,70%{opacity:1} }
+
+/* ── Duo spark ── */
+.duo-spark-toast {
+  background: linear-gradient(135deg, #7C3AED, #A78BFA);
+  color: #fff; font-weight: 800; padding: 14px 18px;
+  border-radius: 14px; box-shadow: 0 4px 20px rgba(124,58,237,0.5);
+}
+
+/* ── Lightning diver card ── */
+.lightning-card {
+  background: linear-gradient(135deg, #03045E, #0077B6);
+  border: 2px solid #F59E0B; border-radius: 14px;
+  padding: 14px 18px; display: flex; align-items: center; gap: 12px;
+}
+
 /* ── Responsive overrides ── */
 @media (min-width: 640px) {
   .tile-grid { grid-template-columns: repeat(5, 1fr); }

@@ -147,9 +147,32 @@
 
     <!-- SUCCESS SCREEN -->
     <div id="success-screen" class="card p-6 text-center fade-in hidden">
+      <!-- Early Diver chip (shown conditionally) -->
+      <div id="early-diver-badge" class="hidden mb-3">
+        <div class="inline-flex items-center gap-2 bg-orange-100 border border-orange-300 rounded-full px-4 py-2">
+          <span class="text-lg">🤿</span>
+          <span class="font-black text-orange-700 text-sm">Early Diver! +5 Bonus Points</span>
+        </div>
+      </div>
       <div class="text-5xl mb-3">🎉</div>
       <h2 class="text-ocean-dark font-black text-xl mb-1">Chào mừng bạn!</h2>
       <p class="text-gray-500 text-sm mb-5">Hồ sơ Sứa của bạn đã được tạo thành công</p>
+
+      <!-- Type Reveal 3D card -->
+      <div id="type-reveal-wrap" class="type-reveal-scene mx-auto mb-5 hidden" style="width:240px;height:150px">
+        <div class="type-reveal-card" id="type-reveal-card">
+          <div class="type-reveal-front">
+            <div class="text-4xl">🪼</div>
+            <p class="text-white font-bold text-sm mt-2">SAT Type của bạn là...</p>
+          </div>
+          <div class="type-reveal-back" id="type-reveal-back">
+            <div id="type-reveal-icon" class="text-4xl mb-1">⭐</div>
+            <p id="type-reveal-label" class="font-black text-ocean-dark text-base">Spotlight Sứa</p>
+            <p id="type-reveal-desc" class="text-xs text-gray-500">Toả sáng, dẫn đầu</p>
+          </div>
+        </div>
+      </div>
+      <button id="reveal-type-btn" class="btn-secondary mb-4 hidden" onclick="triggerTypeReveal()">🎴 Lật xem Type của bạn!</button>
 
       <p class="text-ocean-dark font-bold mb-2">Mã Access Code của bạn:</p>
       <div class="access-code-box mb-3" id="success-code"></div>
@@ -351,6 +374,19 @@
         }
         await batch.commit();
 
+        // Early Diver check — first 20 members get +5 bonus
+        let isEarlyDiver = false;
+        try {
+          const countSnap = await getDocs(collection(db,'members'));
+          const existingCount = countSnap.size; // includes the one we just wrote
+          if (existingCount <= 20) {
+            isEarlyDiver = true;
+            // Add 5 bonus points atomically
+            const { updateDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+            await updateDoc(doc(db,'members',memberRef.id), { points: 15, earlyDiver: true });
+          }
+        } catch {}
+
         // Save session
         setSession({ memberId: memberRef.id, accessCode: code, name: memberData.name, photoURL });
 
@@ -360,12 +396,53 @@
         document.getElementById('success-code').textContent = code;
         document.getElementById('success-screen').classList.remove('hidden');
         new QRCode(document.getElementById('success-qr'), { text: code, width: 160, height: 160, colorDark:'#03045E', colorLight:'#CAF0F8' });
+
+        // Show Early Diver badge
+        if (isEarlyDiver) document.getElementById('early-diver-badge').classList.remove('hidden');
+
+        // Show Type Reveal card
+        const TYPE_MAP = {
+          spotlight:{ icon:'⭐', label:'Spotlight Sứa', desc:'Toả sáng, dẫn đầu' },
+          flow:     { icon:'🌊', label:'Flow Sứa',      desc:'Linh hoạt, hoà nhập' },
+          care:     { icon:'💙', label:'Care Sứa',      desc:'Quan tâm, hỗ trợ' },
+          creative: { icon:'🎨', label:'Creative Sứa',  desc:'Sáng tạo, đổi mới' },
+          calm:     { icon:'🧘', label:'Calm Sứa',      desc:'Điềm tĩnh, sâu sắc' },
+        };
+        const tm = TYPE_MAP[selectedSatType];
+        if (tm) {
+          document.getElementById('type-reveal-icon').textContent  = tm.icon;
+          document.getElementById('type-reveal-label').textContent = tm.label;
+          document.getElementById('type-reveal-desc').textContent  = tm.desc;
+          document.getElementById('type-reveal-wrap').classList.remove('hidden');
+          document.getElementById('reveal-type-btn').classList.remove('hidden');
+        }
       } catch (err) {
         document.getElementById('page-loader').classList.add('hidden');
         showToast('Có lỗi xảy ra: ' + err.message, 'error');
         btn.disabled = false;
       }
     };
+
+    window.triggerTypeReveal = function() {
+      document.getElementById('type-reveal-card').classList.add('flipped');
+      document.getElementById('reveal-type-btn').style.opacity = '0';
+      playRevealSound();
+    };
+
+    function playRevealSound() {
+      try {
+        const ctx = new (window.AudioContext||window.webkitAudioContext)();
+        const notes = [440, 550, 660, 880];
+        notes.forEach((f,i) => {
+          const o=ctx.createOscillator(), g=ctx.createGain();
+          o.connect(g); g.connect(ctx.destination);
+          o.frequency.setValueAtTime(f, ctx.currentTime+i*0.1);
+          g.gain.setValueAtTime(0.2, ctx.currentTime+i*0.1);
+          g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime+i*0.1+0.3);
+          o.start(ctx.currentTime+i*0.1); o.stop(ctx.currentTime+i*0.1+0.35);
+        });
+      } catch {}
+    }
 
     function showToast(msg, type='info') {
       const c = document.getElementById('toast-container');

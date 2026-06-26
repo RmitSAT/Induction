@@ -8,9 +8,32 @@
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
   <script>tailwind.config={theme:{extend:{colors:{'ocean-deep':'#03045E','ocean-dark':'#023E8A','ocean-mid':'#0077B6','ocean-teal':'#0096C7','sky-blue':'#00B4D8','foam-blue':'#ADE8F4','mist-blue':'#CAF0F8','coral-red':'#D62828'},fontFamily:{nunito:['Nunito','sans-serif']}}}}</script>
+  <style>
+    .badge-card { transition: transform 0.15s, box-shadow 0.3s; }
+    .badge-card:active { transform: scale(0.96); }
+    /* B07 shoutout toast */
+    .b07-toast {
+      background: linear-gradient(135deg, #D97706, #F59E0B);
+      color: #03045E; font-weight: 900; padding: 14px 18px;
+      border-radius: 14px; box-shadow: 0 4px 20px rgba(245,158,11,0.5);
+      font-size: 14px; cursor: pointer;
+    }
+  </style>
 </head>
 <body class="font-nunito bg-mist-blue">
   <div id="toast-container"></div>
+
+  <!-- B07 Hall of Fame overlay -->
+  <div id="hof-overlay" class="hof-overlay hidden">
+    <div id="hof-particles" style="position:absolute;inset:0;pointer-events:none;overflow:hidden"></div>
+    <div style="position:relative;z-index:1;text-align:center;padding:24px">
+      <p style="color:#F59E0B;font-size:14px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;margin-bottom:12px">🏆 FULL EXPLORER 🏆</p>
+      <div class="hof-name" id="hof-name">Nhà Thám Hiểm</div>
+      <p style="color:rgba(255,255,255,0.7);font-size:16px;margin-top:12px">đã hoàn thành tất cả nhiệm vụ!</p>
+      <div style="margin-top:24px;font-size:48px;animation:self-pulse 1.5s ease-in-out infinite">🏆</div>
+      <p style="color:rgba(255,255,255,0.4);font-size:12px;margin-top:32px">Nhấn để đóng</p>
+    </div>
+  </div>
 
   <header class="top-header">
     <a href="dashboard.html" class="text-foam-blue font-bold text-sm">&larr; Home</a>
@@ -20,7 +43,6 @@
 
   <div class="page-content px-4 pb-10">
 
-    <!-- Summary banner -->
     <div class="bg-ocean-gradient rounded-2xl p-5 mb-5 text-center">
       <div class="text-4xl mb-1">🏅</div>
       <h1 class="text-white font-black text-xl">Huy Hiệu Của Bạn</h1>
@@ -33,6 +55,10 @@
         <div>
           <p class="text-2xl font-black text-white" id="total-points">0</p>
           <p class="text-xs text-sky-blue">Points</p>
+        </div>
+        <div class="border-l border-sky-blue"></div>
+        <div id="speed-chip-wrap" class="hidden flex flex-col items-center justify-center">
+          <span class="speed-chip">⚡ Lightning</span>
         </div>
       </div>
     </div>
@@ -51,7 +77,8 @@
   <script type="module">
     import { requireAuth } from './js/auth.js';
     import { db } from './js/firebase-config.js';
-    import { doc, getDocs, collection } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+    import { startLiveEventListener } from './js/live-events.js';
+    import { doc, getDocs, getDoc, collection } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
     const session = requireAuth();
 
@@ -66,14 +93,23 @@
     ];
 
     async function load() {
-      const snap = await getDocs(collection(db,'members',session.memberId,'badges'));
+      const [badgesSnap, memberSnap] = await Promise.all([
+        getDocs(collection(db,'members',session.memberId,'badges')),
+        getDoc(doc(db,'members',session.memberId))
+      ]);
+
       const badges = {};
-      snap.forEach(d => { badges[d.id] = d.data(); });
+      badgesSnap.forEach(d => { badges[d.id] = d.data(); });
+      const memberData = memberSnap.data();
 
       let totalPts=0, count=0;
-      Object.values(badges).forEach(b => { if(b.unlocked){totalPts+=b.points;count++;} });
+      Object.values(badges).forEach(b => { if(b.unlocked){totalPts+=b.points||0;count++;} });
       document.getElementById('total-points').textContent = totalPts;
       document.getElementById('badge-count').textContent  = count;
+
+      if (memberData.achievements?.speedRunner) {
+        document.getElementById('speed-chip-wrap').classList.remove('hidden');
+      }
 
       const grid = document.getElementById('badges-grid');
       grid.innerHTML = BADGE_META.map(m => {
@@ -100,7 +136,82 @@
 
       document.getElementById('loading').classList.add('hidden');
       document.getElementById('badges-grid').classList.remove('hidden');
+
+      // B07 Hall of Fame — show once per session if just unlocked
+      const b07 = badges['B07'];
+      if (b07?.unlocked && !sessionStorage.getItem('hof_shown')) {
+        sessionStorage.setItem('hof_shown','1');
+        setTimeout(() => triggerHallOfFame(memberData.name || 'Bạn'), 600);
+      }
     }
+
+    function triggerHallOfFame(name) {
+      const overlay = document.getElementById('hof-overlay');
+      document.getElementById('hof-name').textContent = name;
+      overlay.classList.remove('hidden');
+      spawnGoldParticles();
+      playHofSound();
+      overlay.onclick = () => overlay.classList.add('hidden');
+      setTimeout(() => overlay.classList.add('hidden'), 8000);
+    }
+
+    function spawnGoldParticles() {
+      const container = document.getElementById('hof-particles');
+      const emojis = ['⭐','✨','🌟','💫','🏆','🥇','🎊','🎉'];
+      for (let i = 0; i < 50; i++) {
+        const p = document.createElement('div');
+        p.className = 'hof-gold-particle';
+        const tx = (Math.random()-0.5)*300;
+        const ty = -(Math.random()*500 + 100);
+        const tr = (Math.random()-0.5)*720;
+        p.style.cssText = `
+          left:${Math.random()*100}%; top:${Math.random()*60+20}%;
+          --tx:${tx}px; --ty:${ty}px; --tr:${tr}deg;
+          animation-delay:${Math.random()*1.5}s;
+          animation-duration:${1+Math.random()*1.2}s;
+        `;
+        p.textContent = emojis[Math.floor(Math.random()*emojis.length)];
+        container.appendChild(p);
+      }
+    }
+
+    function playHofSound() {
+      try {
+        const ctx = new (window.AudioContext||window.webkitAudioContext)();
+        // Triumphant fanfare — 4 ascending notes
+        const notes = [523, 659, 784, 1047];
+        notes.forEach((freq, i) => {
+          const osc  = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.connect(gain); gain.connect(ctx.destination);
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(freq, ctx.currentTime + i*0.15);
+          gain.gain.setValueAtTime(0.3, ctx.currentTime + i*0.15);
+          gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + i*0.15 + 0.6);
+          osc.start(ctx.currentTime + i*0.15);
+          osc.stop(ctx.currentTime + i*0.15 + 0.65);
+        });
+      } catch {}
+    }
+
+    // B07 global shoutout listener
+    startLiveEventListener((type, payload) => {
+      if (type === 'b07-shoutout') {
+        showB07Toast(payload.memberName || 'Một Sứa');
+      }
+    });
+
+    function showB07Toast(name) {
+      const c = document.getElementById('toast-container');
+      const t = document.createElement('div');
+      t.className = 'b07-toast';
+      t.innerHTML = `🏆 <strong>${name}</strong> vừa trở thành Full Explorer! Chúc mừng! 🎊`;
+      c.appendChild(t);
+      setTimeout(()=>t.classList.add('show'), 10);
+      setTimeout(()=>{t.classList.remove('show');setTimeout(()=>t.remove(),400);}, 7000);
+    }
+
+    function showToast(msg,type='info'){const c=document.getElementById('toast-container');const t=document.createElement('div');t.className=`toast toast-${type}`;t.textContent=msg;c.appendChild(t);setTimeout(()=>t.classList.add('show'),10);setTimeout(()=>{t.classList.remove('show');setTimeout(()=>t.remove(),300);},3500);}
 
     load().catch(() => {
       document.getElementById('loading').innerHTML = '<p class="text-coral-red font-bold">Lỗi tải dữ liệu.</p>';

@@ -84,6 +84,72 @@
       </div>
     </div>
 
+    <!-- ══ LIVE EVENTS CONTROL PANEL ══════════════════════════════════════ -->
+    <div class="card p-5 mb-6 border-2 border-orange-300">
+      <h2 class="font-black text-ocean-dark mb-4">🎮 Live Events — Push to All Members</h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+        <!-- B07 Global Shoutout -->
+        <div class="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
+          <p class="font-bold text-yellow-800 mb-2">🏆 B07 Full Explorer Shoutout</p>
+          <input id="shoutout-name" type="text" class="input-field mb-2" placeholder="Member name..." style="height:36px;font-size:13px">
+          <button onclick="fireShoutout()" class="btn-primary btn-sm">📢 Broadcast Shoutout</button>
+        </div>
+
+        <!-- BOL Spotlight -->
+        <div class="bg-purple-50 border border-purple-200 rounded-xl p-4">
+          <p class="font-bold text-purple-800 mb-2">⚓ BOL Spotlight</p>
+          <input id="spot-name" type="text" class="input-field mb-1" placeholder="BOL Name..." style="height:32px;font-size:12px">
+          <input id="spot-role" type="text" class="input-field mb-1" placeholder="Role (e.g. Trưởng BOL)..." style="height:32px;font-size:12px">
+          <input id="spot-fact" type="text" class="input-field mb-2" placeholder="Fun fact..." style="height:32px;font-size:12px">
+          <button onclick="fireBolSpotlight()" class="btn-primary btn-sm">🔦 Spotlight This BOL</button>
+        </div>
+
+        <!-- Milestone Shockwave -->
+        <div class="bg-blue-50 border border-blue-200 rounded-xl p-4">
+          <p class="font-bold text-blue-800 mb-2">🌊 Milestone Shockwave</p>
+          <select id="shockwave-pct" class="input-field mb-2" style="height:36px">
+            <option value="25">25% reached</option>
+            <option value="50" selected>50% reached</option>
+            <option value="75">75% reached</option>
+            <option value="100">100% completed!</option>
+          </select>
+          <button onclick="fireShockwave()" class="btn-primary btn-sm">💥 Trigger Shockwave</button>
+        </div>
+
+        <!-- Tile Storm -->
+        <div class="bg-green-50 border border-green-200 rounded-xl p-4">
+          <p class="font-bold text-green-800 mb-2">⚡ Tile Storm</p>
+          <select id="storm-dur" class="input-field mb-2" style="height:36px">
+            <option value="60">1 minute</option>
+            <option value="180" selected>3 minutes</option>
+            <option value="300">5 minutes</option>
+          </select>
+          <button onclick="fireTileStorm()" class="btn-primary btn-sm" style="background:#059669">⚡ Start Tile Storm</button>
+        </div>
+
+        <!-- Battle Cry -->
+        <div class="bg-red-50 border border-red-200 rounded-xl p-4">
+          <p class="font-bold text-red-800 mb-2">⚔️ Team Battle Cry</p>
+          <select id="battle-team" class="input-field mb-1" style="height:36px">
+            <option value="">All Teams</option>
+          </select>
+          <button onclick="fireBattleCry()" class="btn-primary btn-sm" style="background:#DC2626">⚔️ Fire Battle Cry</button>
+        </div>
+
+        <!-- Crew Sync -->
+        <div class="bg-teal-50 border border-teal-200 rounded-xl p-4">
+          <p class="font-bold text-teal-800 mb-2">🔄 Crew Sync Flash</p>
+          <select id="sync-team" class="input-field mb-1" style="height:36px">
+            <option value="">All Teams</option>
+          </select>
+          <button onclick="fireCrewSync()" class="btn-primary btn-sm" style="background:#0F766E">📡 Sync All Screens</button>
+        </div>
+
+      </div>
+    </div>
+    <!-- ════════════════════════════════════════════════════════════════════ -->
+
     <!-- Quick links -->
     <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
       <a href="members.html"   class="card p-4 text-center hover:bg-mist-blue transition-colors block">👥<p class="font-bold text-sm mt-1 text-ocean-dark">Members</p></a>
@@ -101,7 +167,7 @@
     import { auth } from '../js/firebase-config.js';
     import { onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
     import { db } from '../js/firebase-config.js';
-    import { collection, getDocs, getDoc, doc, updateDoc } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+    import { collection, getDocs, getDoc, doc, updateDoc, setDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
     onAuthStateChanged(auth, user => { if (!user) window.location.href = 'index.html'; });
 
@@ -180,9 +246,67 @@
       showToast('Registration setting updated','success');
     };
 
+    // ── Live event helpers ─────────────────────────────────────────────────────
+    async function fireLiveEvent(type, payload={}) {
+      await setDoc(doc(db,'config','liveEvent'), { type, payload, triggeredAt: serverTimestamp() });
+      showToast(`Event "${type}" fired!`, 'success');
+    }
+
+    window.fireShoutout = async function() {
+      const name = document.getElementById('shoutout-name').value.trim();
+      if (!name) { showToast('Enter member name first','error'); return; }
+      await fireLiveEvent('b07-shoutout', { memberName: name });
+      document.getElementById('shoutout-name').value = '';
+    };
+
+    window.fireBolSpotlight = async function() {
+      const name = document.getElementById('spot-name').value.trim();
+      if (!name) { showToast('Enter BOL name first','error'); return; }
+      await fireLiveEvent('bol-spotlight', {
+        bolName: name,
+        bolRole: document.getElementById('spot-role').value.trim(),
+        bolFact: document.getElementById('spot-fact').value.trim(),
+        bolEmoji: '⚓',
+      });
+      ['spot-name','spot-role','spot-fact'].forEach(id => document.getElementById(id).value='');
+    };
+
+    window.fireShockwave = async function() {
+      const pct = parseInt(document.getElementById('shockwave-pct').value);
+      await fireLiveEvent('shockwave', { milestonePercent: pct });
+    };
+
+    window.fireTileStorm = async function() {
+      const dur = parseInt(document.getElementById('storm-dur').value);
+      await fireLiveEvent('tile-storm', { durationSeconds: dur });
+    };
+
+    window.fireBattleCry = async function() {
+      const sel = document.getElementById('battle-team');
+      const teamId   = sel.value;
+      const teamName = sel.options[sel.selectedIndex]?.text || 'Team';
+      await fireLiveEvent('battle-cry', { teamId: teamId||null, teamName, teamColor:'#0077B6' });
+    };
+
+    window.fireCrewSync = async function() {
+      const teamId = document.getElementById('sync-team').value;
+      await fireLiveEvent('crew-sync', { teamId: teamId||null, teamColor:'#00B4D8' });
+    };
+
     function showToast(msg,type='info'){const c=document.getElementById('toast-container');const t=document.createElement('div');t.className=`toast toast-${type}`;t.textContent=msg;c.appendChild(t);setTimeout(()=>t.classList.add('show'),10);setTimeout(()=>{t.classList.remove('show');setTimeout(()=>t.remove(),300);},3000);}
 
+    // Populate team selects
+    async function populateTeamSelects() {
+      try {
+        const snap = await getDocs(collection(db,'teams'));
+        const opts = '<option value="">All Teams</option>' + snap.docs.map(d=>`<option value="${d.id}">${d.data().name}</option>`).join('');
+        document.getElementById('battle-team').innerHTML = opts;
+        document.getElementById('sync-team').innerHTML   = opts;
+      } catch {}
+    }
+
     load();
+    populateTeamSelects();
   </script>
 </body>
 </html>

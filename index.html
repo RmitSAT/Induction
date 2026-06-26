@@ -38,6 +38,17 @@
 
   <!-- Login card -->
   <div class="flex-1 bg-wave-light flex flex-col items-center justify-start px-5 pt-8 pb-10">
+    <!-- Early Diver counter -->
+    <div id="early-diver-counter" class="early-diver-bar w-full max-w-sm mb-4 hidden">
+      <div class="flex items-center justify-between mb-1 px-1">
+        <span style="font-size:13px;font-weight:800;color:#92400E">🤿 Early Diver Bonus</span>
+        <span id="early-spots-left" style="font-size:12px;font-weight:700;color:#D97706"></span>
+      </div>
+      <div class="spots" style="height:8px;background:rgba(255,255,255,0.4);border-radius:99px;overflow:hidden">
+        <div id="early-spots-bar" style="height:100%;background:#F59E0B;border-radius:99px;transition:width 0.8s ease;width:0%"></div>
+      </div>
+      <p style="font-size:11px;color:#92400E;margin-top:3px;font-weight:600">20 Sứa đầu tiên đăng ký nhận +5 điểm bonus!</p>
+    </div>
     <div class="card w-full max-w-sm p-6 fade-in">
       <h2 class="text-ocean-dark font-black text-xl mb-1 text-center">Đăng nhập</h2>
       <p class="text-center text-sm text-gray-500 mb-6">Nhập mã Access Code để tiếp tục hành trình</p>
@@ -109,6 +120,24 @@
       const s = JSON.parse(localStorage.getItem('sat_member_session') || 'null');
       if (s && s.memberId) window.location.href = 'dashboard.html';
     } catch {}
+
+    // Early Diver counter
+    (async () => {
+      try {
+        const { db } = await import('./js/firebase-config.js');
+        const { getDocs, collection } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+        const snap  = await getDocs(collection(db,'members'));
+        const count = snap.size;
+        const LIMIT = 20;
+        if (count < LIMIT) {
+          const spotsLeft = LIMIT - count;
+          const pct = (count/LIMIT)*100;
+          document.getElementById('early-spots-left').textContent = `${spotsLeft} chỗ còn lại`;
+          document.getElementById('early-spots-bar').style.width  = pct + '%';
+          document.getElementById('early-diver-counter').classList.remove('hidden');
+        }
+      } catch {}
+    })();
   </script>
 </body>
 </html>

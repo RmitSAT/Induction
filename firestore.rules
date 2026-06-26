@@ -15,6 +15,16 @@ service cloud.firestore {
     match /config/admin {
       allow read, write: if isAdmin();
     }
+    // Live event pub/sub (8s TTL, read by all members, write by admin only)
+    match /config/liveEvent {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    // Early Diver config
+    match /config/earlyDiver {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
 
     // ── Members ────────────────────────────────────────────────────────────
     match /members/{memberId} {

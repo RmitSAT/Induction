@@ -8,9 +8,46 @@
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
   <script>tailwind.config={theme:{extend:{colors:{'ocean-deep':'#03045E','ocean-dark':'#023E8A','ocean-mid':'#0077B6','ocean-teal':'#0096C7','sky-blue':'#00B4D8','foam-blue':'#ADE8F4','mist-blue':'#CAF0F8','coral-red':'#D62828'},fontFamily:{nunito:['Nunito','sans-serif']}}}}</script>
+  <style>
+    /* BOL flip card — fixed height */
+    .bol-flip-scene { perspective: 900px; height: 140px; cursor: pointer; user-select: none; }
+    .bol-flip-card  {
+      position: relative; width: 100%; height: 100%;
+      transform-style: preserve-3d; transition: transform 0.55s cubic-bezier(.4,0,.2,1);
+    }
+    .bol-flip-scene.flipped .bol-flip-card { transform: rotateY(180deg); }
+    .bol-front, .bol-back {
+      position: absolute; inset: 0;
+      backface-visibility: hidden; -webkit-backface-visibility: hidden;
+      border-radius: 16px; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; padding: 14px; text-align: center;
+    }
+    .bol-front {
+      background: linear-gradient(135deg, #023E8A, #0077B6);
+      border: 2px solid rgba(173,232,244,0.25);
+    }
+    .bol-back {
+      background: #fff; border: 2px solid #00B4D8;
+      transform: rotateY(180deg);
+    }
+    .bol-flip-scene .flip-hint {
+      font-size:10px; color:rgba(173,232,244,0.5); margin-top:6px; font-weight:600;
+    }
+  </style>
 </head>
 <body class="font-nunito bg-mist-blue">
   <div id="toast-container"></div>
+
+  <!-- BOL Spotlight overlay (triggered by admin) -->
+  <div id="spotlight-overlay" class="bol-spotlight-overlay hidden">
+    <div class="bol-spotlight-card">
+      <div id="spotlight-emoji" style="font-size:56px;margin-bottom:12px">👤</div>
+      <p style="color:#ADE8F4;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px" id="spotlight-role">BOL Member</p>
+      <p style="color:#fff;font-weight:900;font-size:24px;margin-bottom:8px" id="spotlight-name">—</p>
+      <p style="color:#ADE8F4;font-size:13px;line-height:1.5" id="spotlight-fact"></p>
+    </div>
+    <p style="color:rgba(255,255,255,0.4);font-size:12px;margin-top:20px;">Nhấn để đóng</p>
+  </div>
 
   <header class="top-header">
     <a href="dashboard.html" class="text-foam-blue font-bold text-sm">&larr; Home</a>
@@ -23,7 +60,7 @@
     <div class="bg-ocean-gradient rounded-2xl p-5 mb-5 text-center">
       <div class="text-4xl mb-2">⚓</div>
       <h1 class="text-white font-black text-xl">Meet Your Sea Captains</h1>
-      <p class="text-sky-blue text-sm mt-1">Làm quen với Ban Lãnh Đạo SAT — BOL</p>
+      <p class="text-sky-blue text-sm mt-1">Lật thẻ để khám phá tất cả các BOL!</p>
       <div class="mt-3 inline-block bg-sky-blue text-ocean-dark font-black px-4 py-1 rounded-full text-sm">+15 Points</div>
     </div>
 
@@ -34,36 +71,43 @@
       <div class="card p-6 text-center">
         <div class="text-5xl mb-3">⚓</div>
         <h2 class="text-ocean-dark font-black text-xl mb-2">Đã Hoàn Thành!</h2>
-        <p class="text-gray-500 text-sm mb-4">Bạn đã tham gia hoạt động Meet Your Sea Captains!</p>
+        <p class="text-gray-500 text-sm mb-4">Bạn đã gặp gỡ tất cả Sea Captains!</p>
         <a href="dashboard.html" class="btn-primary">← Về Mission Hub</a>
       </div>
     </div>
 
-    <!-- Active -->
-    <div id="active-content" class="hidden space-y-4">
-      <div class="card p-4">
-        <p class="text-sm text-gray-600 leading-relaxed">
-          Đây là hoạt động giới thiệu BOL (Ban Ổn Lòng) — những Sea Captains dẫn dắt hành trình của bạn trong SAT!
-          Hãy lắng nghe, đoán xem ai nói gì, và tìm hiểu thêm về những người bạn đồng hành của mình. 🎯
-        </p>
+    <!-- Active content -->
+    <div id="active-content" class="hidden">
+      <!-- Progress counter -->
+      <div class="card p-4 mb-4 flex items-center justify-between">
+        <div>
+          <p class="font-black text-ocean-dark">Tiến độ khám phá</p>
+          <p class="text-sm text-gray-500">Lật hết các thẻ để mở khóa huy hiệu</p>
+        </div>
+        <div class="text-right">
+          <span class="text-3xl font-black text-ocean-mid" id="flip-count">0</span>
+          <span class="text-gray-400 font-bold" id="flip-total">/6</span>
+        </div>
       </div>
 
-      <!-- BOL cards loaded dynamically -->
-      <div id="bol-cards" class="grid grid-cols-1 gap-3"></div>
+      <p class="text-center text-xs text-gray-400 mb-3">👆 Nhấn mỗi thẻ để lật và tìm hiểu thêm</p>
 
-      <!-- Confirm participation -->
-      <div class="card p-5">
-        <h3 class="font-black text-ocean-dark mb-3">Xác Nhận Tham Gia</h3>
-        <label class="flex items-start gap-3 cursor-pointer mb-4">
-          <input type="checkbox" id="bol-check" class="mt-1 w-5 h-5 accent-ocean-mid" onchange="toggleBOLBtn()">
-          <span class="text-sm text-gray-600">Tôi đã tham gia hoạt động "Meet Your Sea Captains" và Two Truths One Lie</span>
-        </label>
-        <button id="bol-confirm-btn" onclick="confirmBOL()" disabled class="btn-primary">⚓ Nhận BOL Compass Badge</button>
+      <!-- Flip card grid -->
+      <div id="bol-flip-grid" class="grid grid-cols-2 gap-3 mb-5"></div>
+
+      <!-- Unlock button (shows after all flipped) -->
+      <div id="unlock-section" class="hidden card p-5">
+        <div class="text-center mb-4">
+          <div class="text-4xl mb-2">🎉</div>
+          <h3 class="font-black text-ocean-dark text-lg">Bạn đã gặp tất cả Sea Captains!</h3>
+          <p class="text-sm text-gray-500 mt-1">Nhận BOL Compass Badge ngay nhé!</p>
+        </div>
+        <button onclick="confirmBOL()" id="bol-confirm-btn" class="btn-primary">⚓ Nhận BOL Compass Badge</button>
       </div>
 
-      <div class="card-ocean p-4 text-sm text-ocean-dark">
+      <div class="card-ocean p-4 text-sm text-ocean-dark mt-3">
         <p class="font-bold">⚠️ Lưu ý:</p>
-        <p class="mt-1">Chỉ xác nhận khi bạn đã thực sự tham gia hoạt động trực tiếp. Hãy trung thực!</p>
+        <p class="mt-1">Hãy thực sự chú ý lắng nghe trong hoạt động Two Truths One Lie để biết BOL nào đang giới thiệu!</p>
       </div>
     </div>
   </div>
@@ -78,9 +122,13 @@
   <script type="module">
     import { requireAuth } from './js/auth.js';
     import { db } from './js/firebase-config.js';
-    import { doc, getDoc, getDocs, collection, updateDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+    import { startLiveEventListener } from './js/live-events.js';
+    import {
+      doc, getDoc, getDocs, collection, updateDoc, serverTimestamp, writeBatch
+    } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
     const session = requireAuth();
+    let bolMembers = [], flippedSet = new Set(), totalBOL = 0;
 
     async function load() {
       const [badgeSnap, bolSnap] = await Promise.all([
@@ -89,32 +137,84 @@
       ]);
       document.getElementById('loading').classList.add('hidden');
 
-      const b04 = badgeSnap.exists() ? badgeSnap.data() : {};
-      if (b04.unlocked) { document.getElementById('already-done').classList.remove('hidden'); return; }
-
-      // Render BOL cards
-      const bolMembers = bolSnap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>a.order-b.order);
-      const container = document.getElementById('bol-cards');
-      if (bolMembers.length === 0) {
-        container.innerHTML = '<div class="card-ocean p-4 text-center text-ocean-dark text-sm">Thông tin BOL sẽ được cập nhật trong sự kiện!</div>';
-      } else {
-        container.innerHTML = bolMembers.map(b => `
-          <div class="card p-4 flex gap-3 items-start">
-            <div class="text-3xl">${b.emoji || '👤'}</div>
-            <div>
-              <p class="font-black text-ocean-dark">${b.name}</p>
-              <p class="text-xs text-sky-blue font-bold mb-1">${b.role || ''}</p>
-              <p class="text-sm text-gray-600">${b.funFact || ''}</p>
-            </div>
-          </div>`).join('');
+      if (badgeSnap.exists() && badgeSnap.data().unlocked) {
+        document.getElementById('already-done').classList.remove('hidden');
+        return;
       }
 
+      bolMembers = bolSnap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>a.order-b.order);
+
+      if (!bolMembers.length) {
+        bolMembers = [
+          {id:'placeholder1', name:'Sea Captain 1', role:'Trưởng BOL', funFact:'Thông tin sẽ được cập nhật trong sự kiện!', emoji:'⚓'},
+          {id:'placeholder2', name:'Sea Captain 2', role:'Phó BOL',   funFact:'Hãy chú ý lắng nghe giới thiệu nhé!', emoji:'🚢'},
+          {id:'placeholder3', name:'Sea Captain 3', role:'BOL Member', funFact:'Tìm hiểu thêm về các BOL tại sự kiện!', emoji:'🌊'},
+          {id:'placeholder4', name:'Sea Captain 4', role:'BOL Member', funFact:'Mỗi BOL có một câu chuyện thú vị!', emoji:'🎯'},
+          {id:'placeholder5', name:'Sea Captain 5', role:'BOL Member', funFact:'Họ sẽ dẫn dắt bạn trong hành trình này!', emoji:'🌟'},
+          {id:'placeholder6', name:'Sea Captain 6', role:'BOL Member', funFact:'Sẵn sàng chào đón bạn!', emoji:'💙'},
+        ];
+      }
+
+      totalBOL = bolMembers.length;
+      document.getElementById('flip-total').textContent = `/${totalBOL}`;
+      renderCards();
       document.getElementById('active-content').classList.remove('hidden');
     }
 
-    window.toggleBOLBtn = function() {
-      document.getElementById('bol-confirm-btn').disabled = !document.getElementById('bol-check').checked;
+    function renderCards() {
+      const grid = document.getElementById('bol-flip-grid');
+      grid.innerHTML = bolMembers.map((b, i) => `
+        <div class="bol-flip-scene ${flippedSet.has(b.id)?'flipped':''}" id="scene-${b.id}" onclick="flipCard('${b.id}', ${i})">
+          <div class="bol-flip-card">
+            <div class="bol-front">
+              <div style="font-size:2.2rem;margin-bottom:6px">❓</div>
+              <p style="color:rgba(173,232,244,0.7);font-weight:700;font-size:11px;">Sea Captain #${i+1}</p>
+              <p class="flip-hint">Nhấn để lật →</p>
+            </div>
+            <div class="bol-back">
+              <div style="font-size:2rem;margin-bottom:6px">${b.emoji||'👤'}</div>
+              <p style="font-weight:900;color:#03045E;font-size:13px;margin-bottom:2px">${b.name}</p>
+              <p style="font-size:10px;color:#00B4D8;font-weight:700;margin-bottom:6px">${b.role||''}</p>
+              <p style="font-size:10px;color:#475569;line-height:1.4;">${b.funFact||''}</p>
+            </div>
+          </div>
+        </div>`).join('');
+    }
+
+    window.flipCard = function(id, idx) {
+      if (flippedSet.has(id)) return; // already flipped — allow re-flip for re-reading
+      const scene = document.getElementById(`scene-${id}`);
+      scene.classList.toggle('flipped');
+      if (scene.classList.contains('flipped')) {
+        flippedSet.add(id);
+        playFlipSound();
+        updateFlipCount();
+      } else {
+        flippedSet.delete(id);
+        updateFlipCount();
+      }
     };
+
+    function updateFlipCount() {
+      document.getElementById('flip-count').textContent = flippedSet.size;
+      if (flippedSet.size >= totalBOL) {
+        document.getElementById('unlock-section').classList.remove('hidden');
+        document.getElementById('unlock-section').scrollIntoView({ behavior:'smooth', block:'nearest' });
+      }
+    }
+
+    function playFlipSound() {
+      try {
+        const ctx = new (window.AudioContext||window.webkitAudioContext)();
+        const osc = ctx.createOscillator(); const gain = ctx.createGain();
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.frequency.setValueAtTime(660, ctx.currentTime);
+        osc.frequency.setValueAtTime(880, ctx.currentTime+0.05);
+        gain.gain.setValueAtTime(0.18, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime+0.25);
+        osc.start(); osc.stop(ctx.currentTime+0.26);
+      } catch {}
+    }
 
     window.confirmBOL = async function() {
       const btn = document.getElementById('bol-confirm-btn');
@@ -122,9 +222,13 @@
       try {
         const ms = await getDoc(doc(db,'members',session.memberId));
         const cur = ms.data();
-        await updateDoc(doc(db,'members',session.memberId), { bolParticipated:true, points:(cur.points||0)+15 });
-        await updateDoc(doc(db,'members',session.memberId,'badges','B04'), { unlocked:true, unlockedAt:serverTimestamp() });
-        showToast('⚓ BOL Compass Badge đã mở khoá!', 'success');
+        const batch = writeBatch(db);
+        batch.update(doc(db,'members',session.memberId), { bolParticipated:true, points:(cur.points||0)+15 });
+        batch.set(doc(db,'members',session.memberId,'badges','B04'),
+          { unlocked:true, unlockedAt:serverTimestamp(), adminOverride:false, points:15 }, { merge:true });
+        await batch.commit();
+        await checkFullExplorer();
+        showToast('⚓ BOL Compass Badge đã mở khoá! +15 điểm!', 'success');
         setTimeout(()=>{ document.getElementById('active-content').classList.add('hidden'); document.getElementById('already-done').classList.remove('hidden'); }, 1200);
       } catch {
         showToast('Lỗi. Thử lại nhé!','error');
@@ -132,7 +236,36 @@
       }
     };
 
+    async function checkFullExplorer() {
+      try {
+        const snaps = await Promise.all(['B01','B02','B03','B04','B05','B06']
+          .map(id => getDoc(doc(db,'members',session.memberId,'badges',id))));
+        if (snaps.every(s=>s.exists()&&s.data().unlocked)) {
+          const ms = await getDoc(doc(db,'members',session.memberId));
+          const b = writeBatch(db);
+          b.set(doc(db,'members',session.memberId,'badges','B07'),{unlocked:true,unlockedAt:serverTimestamp(),adminOverride:false,points:50},{merge:true});
+          b.update(doc(db,'members',session.memberId),{points:(ms.data().points||0)+50});
+          await b.commit();
+        }
+      } catch {}
+    }
+
+    // ── BOL Spotlight listener ─────────────────────────────────────────────────
+    const overlay = document.getElementById('spotlight-overlay');
+    overlay.addEventListener('click', () => overlay.classList.add('hidden'));
+    startLiveEventListener((type, payload) => {
+      if (type === 'bol-spotlight') {
+        document.getElementById('spotlight-emoji').textContent = payload.bolEmoji || '👤';
+        document.getElementById('spotlight-name').textContent  = payload.bolName  || '—';
+        document.getElementById('spotlight-role').textContent  = payload.bolRole  || 'BOL Member';
+        document.getElementById('spotlight-fact').textContent  = payload.bolFact  || '';
+        overlay.classList.remove('hidden');
+        setTimeout(() => overlay.classList.add('hidden'), 7000);
+      }
+    });
+
     function showToast(msg,type='info'){const c=document.getElementById('toast-container');const t=document.createElement('div');t.className=`toast toast-${type}`;t.textContent=msg;c.appendChild(t);setTimeout(()=>t.classList.add('show'),10);setTimeout(()=>{t.classList.remove('show');setTimeout(()=>t.remove(),300);},3500);}
+
     load();
   </script>
 </body>

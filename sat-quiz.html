@@ -8,14 +8,23 @@
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
   <script>tailwind.config={theme:{extend:{colors:{'ocean-deep':'#03045E','ocean-dark':'#023E8A','ocean-mid':'#0077B6','ocean-teal':'#0096C7','sky-blue':'#00B4D8','foam-blue':'#ADE8F4','mist-blue':'#CAF0F8','coral-red':'#D62828'},fontFamily:{nunito:['Nunito','sans-serif']}}}}</script>
+  <style>
+    .quiz-option { transition: transform 0.08s, box-shadow 0.08s; }
+    .quiz-option:active { transform: scale(0.97); }
+    #timer-bar { transition: width 1s linear; }
+    .rank-reveal { animation: fadeIn 0.6s ease; }
+  </style>
 </head>
 <body class="font-nunito bg-mist-blue">
   <div id="toast-container"></div>
+  <div id="combo-container"></div>
 
   <header class="top-header">
     <a href="dashboard.html" class="text-foam-blue font-bold text-sm">&larr; Home</a>
     <span class="text-white font-black">🗺️ SAT Ocean Map</span>
-    <div class="w-14"></div>
+    <div id="timer-display" class="hidden text-white font-black text-sm bg-white bg-opacity-20 px-3 py-1 rounded-full">
+      ⏱️ <span id="timer-sec">60</span>s
+    </div>
   </header>
 
   <div class="page-content px-4 pb-10">
@@ -25,7 +34,10 @@
       <div class="text-4xl mb-2">🗺️</div>
       <h1 class="text-white font-black text-xl">SAT Ocean Map Quiz</h1>
       <p class="text-sky-blue text-sm mt-1">Vượt qua bài quiz để nhận huy hiệu</p>
-      <div class="mt-3 inline-block bg-sky-blue text-ocean-dark font-black px-4 py-1 rounded-full text-sm">+20 Points</div>
+      <div class="mt-2 flex justify-center gap-3 flex-wrap">
+        <div class="inline-block bg-sky-blue text-ocean-dark font-black px-3 py-1 rounded-full text-sm">+20 Points</div>
+        <div class="inline-block bg-yellow-400 text-ocean-dark font-black px-3 py-1 rounded-full text-sm">⚡ Speed Run: +10 nếu ≤60s</div>
+      </div>
     </div>
 
     <div id="loading" class="text-center py-10"><div class="spinner mx-auto"></div></div>
@@ -35,9 +47,10 @@
       <div class="card p-6 text-center">
         <div class="text-5xl mb-3">🎓</div>
         <h2 class="text-ocean-dark font-black text-xl mb-2">Đã Vượt Qua!</h2>
-        <p class="text-gray-500 text-sm mb-4">Bạn đã hoàn thành SAT Ocean Map Quiz và nhận huy hiệu.</p>
+        <p class="text-gray-500 text-sm mb-4">Bạn đã hoàn thành SAT Ocean Map Quiz.</p>
         <div class="bg-mist-blue rounded-xl p-4 mb-4">
           <p class="text-ocean-dark font-bold">Điểm cao nhất: <span id="best-score" class="text-ocean-mid">—</span></p>
+          <div id="speed-chip-display" class="hidden mt-2"></div>
         </div>
         <a href="dashboard.html" class="btn-primary">← Về Mission Hub</a>
       </div>
@@ -51,7 +64,8 @@
           <li>📌 <span id="q-count">5</span> câu hỏi về SAT</li>
           <li>✅ Cần đúng ít nhất <span id="pass-mark">3</span>/<span id="q-count2">5</span> câu để qua</li>
           <li>🔄 Có thể làm lại nếu không đạt</li>
-          <li>⏱️ Không giới hạn thời gian</li>
+          <li>⚡ Hoàn thành trong <strong>60 giây</strong> → +10 bonus "Lightning" points!</li>
+          <li>🔥 Trả lời đúng 3 liên tiếp → nhận COMBO bonus!</li>
         </ul>
         <button onclick="startQuiz()" class="btn-primary mt-5">🚀 Bắt đầu Quiz!</button>
       </div>
@@ -59,16 +73,23 @@
 
     <!-- Quiz playing -->
     <div id="quiz-playing" class="hidden">
-      <!-- Progress -->
+      <!-- Timer bar -->
+      <div class="bg-white rounded-xl overflow-hidden mb-3 shadow-sm">
+        <div id="timer-bar" class="h-2 bg-gradient-to-r from-green-400 to-sky-blue" style="width:100%"></div>
+      </div>
+
       <div class="flex items-center justify-between mb-3">
         <span class="text-ocean-dark font-bold text-sm">Câu <span id="q-num">1</span>/<span id="q-total">5</span></span>
-        <span class="text-ocean-mid font-bold text-sm" id="score-display">0 đúng</span>
+        <div class="flex items-center gap-2">
+          <span id="combo-display" class="hidden text-xs font-black text-yellow-500">🔥 x<span id="combo-count">0</span></span>
+          <span class="text-ocean-mid font-bold text-sm" id="score-display">0 đúng</span>
+        </div>
       </div>
       <div class="progress-bar-track mb-5">
         <div class="progress-bar-fill" id="quiz-progress-bar" style="width:0%"></div>
       </div>
 
-      <div class="card p-5 mb-4">
+      <div class="card p-5 mb-4" id="question-card">
         <p class="font-black text-ocean-dark text-base mb-5" id="question-text"></p>
         <div class="space-y-3" id="options-container"></div>
       </div>
@@ -81,10 +102,17 @@
       <div class="card p-6 text-center">
         <div class="text-5xl mb-3" id="result-emoji">🎉</div>
         <h2 class="font-black text-ocean-dark text-xl mb-1" id="result-title"></h2>
-        <p class="text-gray-500 text-sm mb-4" id="result-subtitle"></p>
-        <div class="bg-mist-blue rounded-xl p-4 mb-5">
+        <p class="text-gray-500 text-sm mb-3" id="result-subtitle"></p>
+        <div id="speed-result" class="hidden mb-3"></div>
+        <div class="bg-mist-blue rounded-xl p-4 mb-4">
           <p class="text-4xl font-black text-ocean-mid mb-1" id="result-score"></p>
           <p class="text-sm text-gray-500">câu trả lời đúng</p>
+          <div id="time-taken" class="text-xs text-gray-400 mt-1"></div>
+        </div>
+        <div id="rank-reveal" class="hidden rank-reveal bg-ocean-gradient rounded-xl p-4 mb-4 text-white">
+          <p class="text-xs text-sky-blue font-bold">Thứ hạng của bạn</p>
+          <p class="text-3xl font-black" id="rank-text">—</p>
+          <p class="text-xs text-foam-blue" id="rank-sub"></p>
         </div>
         <div id="result-actions"></div>
       </div>
@@ -102,10 +130,14 @@
   <script type="module">
     import { requireAuth } from './js/auth.js';
     import { db } from './js/firebase-config.js';
-    import { doc, getDoc, getDocs, collection, query, where, orderBy, updateDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+    import {
+      doc, getDoc, getDocs, collection, query, where, orderBy,
+      updateDoc, setDoc, serverTimestamp, writeBatch
+    } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
     const session = requireAuth();
-    let questions = [], currentQ = 0, score = 0, selectedIdx = null, passMark = 3;
+    let questions  = [], currentQ = 0, score = 0, selectedIdx = null, passMark = 3;
+    let combo = 0, quizStartTime = null, timerInterval = null, SPEED_LIMIT = 60;
 
     async function load() {
       const [badgeSnap, settingsSnap, qSnap] = await Promise.all([
@@ -113,53 +145,85 @@
         getDoc(doc(db,'config','settings')),
         getDocs(query(collection(db,'quizQuestions'), where('active','==',true), orderBy('order')))
       ]);
-
       document.getElementById('loading').classList.add('hidden');
 
       const b03 = badgeSnap.exists() ? badgeSnap.data() : {};
       if (b03.unlocked) {
         const memberSnap = await getDoc(doc(db,'members',session.memberId));
-        document.getElementById('best-score').textContent = `${memberSnap.data().quizScore || 0}/${questions.length || 5}`;
+        const mData = memberSnap.data();
+        document.getElementById('best-score').textContent = `${mData.quizScore||0}/${questions.length||5}`;
+        if (mData.achievements?.speedRunner) {
+          document.getElementById('speed-chip-display').innerHTML = '<span class="speed-chip">⚡ Lightning Diver</span>';
+          document.getElementById('speed-chip-display').classList.remove('hidden');
+        }
         document.getElementById('already-passed').classList.remove('hidden');
         return;
       }
 
       const settings = settingsSnap.exists() ? settingsSnap.data() : {};
       passMark = settings.quizPassMark || 3;
+      SPEED_LIMIT = settings.quizSpeedLimit || 60;
 
       questions = qSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-      if (questions.length === 0) {
+      if (!questions.length) {
         document.getElementById('quiz-intro').innerHTML = '<div class="card p-5 text-center"><p class="text-coral-red font-bold">Chưa có câu hỏi. Liên hệ ban tổ chức!</p><a href="dashboard.html" class="btn-secondary mt-4">← Home</a></div>';
         document.getElementById('quiz-intro').classList.remove('hidden');
         return;
       }
 
-      document.getElementById('q-count').textContent  = questions.length;
-      document.getElementById('q-count2').textContent = questions.length;
-      document.getElementById('q-total').textContent  = questions.length;
+      document.getElementById('q-count').textContent   = questions.length;
+      document.getElementById('q-count2').textContent  = questions.length;
+      document.getElementById('q-total').textContent   = questions.length;
       document.getElementById('pass-mark').textContent = passMark;
       document.getElementById('quiz-intro').classList.remove('hidden');
     }
 
     window.startQuiz = function() {
-      currentQ = 0; score = 0; selectedIdx = null;
+      currentQ = 0; score = 0; selectedIdx = null; combo = 0;
       document.getElementById('quiz-intro').classList.add('hidden');
       document.getElementById('quiz-playing').classList.remove('hidden');
+      document.getElementById('timer-display').classList.remove('hidden');
+      quizStartTime = Date.now();
+      startTimer();
       renderQuestion();
     };
 
+    // ── Timer ──────────────────────────────────────────────────────────────────
+    function startTimer() {
+      let remaining = SPEED_LIMIT;
+      updateTimerUI(remaining);
+      timerInterval = setInterval(() => {
+        remaining--;
+        updateTimerUI(remaining);
+        if (remaining <= 0) clearInterval(timerInterval);
+      }, 1000);
+    }
+    function stopTimer() { clearInterval(timerInterval); timerInterval = null; }
+    function updateTimerUI(sec) {
+      document.getElementById('timer-sec').textContent = Math.max(0, sec);
+      const pct = (Math.max(0,sec) / SPEED_LIMIT) * 100;
+      const bar = document.getElementById('timer-bar');
+      bar.style.width = pct + '%';
+      bar.style.background = pct > 50 ? 'linear-gradient(90deg,#34D399,#00B4D8)'
+        : pct > 20 ? 'linear-gradient(90deg,#FBBF24,#F59E0B)'
+        : 'linear-gradient(90deg,#EF4444,#DC2626)';
+    }
+    function getElapsedSeconds() { return Math.round((Date.now() - (quizStartTime||Date.now())) / 1000); }
+
+    // ── Question rendering ─────────────────────────────────────────────────────
     function renderQuestion() {
       const q = questions[currentQ];
-      document.getElementById('q-num').textContent = currentQ + 1;
+      document.getElementById('q-num').textContent        = currentQ + 1;
       document.getElementById('score-display').textContent = `${score} đúng`;
       document.getElementById('quiz-progress-bar').style.width = `${(currentQ/questions.length)*100}%`;
       document.getElementById('question-text').textContent = q.question;
       document.getElementById('next-btn').disabled = true;
       selectedIdx = null;
+      updateComboDisplay();
 
       const letters = ['A','B','C','D'];
       document.getElementById('options-container').innerHTML = q.options.map((opt,i) => `
-        <button class="quiz-option w-full text-left" onclick="selectOption(this, ${i}, ${q.correctIndex})">
+        <button class="quiz-option w-full text-left" onclick="selectOption(this,${i},${q.correctIndex})">
           <span class="font-black text-ocean-mid w-6">${letters[i]}.</span>
           <span>${opt}</span>
         </button>`).join('');
@@ -171,26 +235,72 @@
       const opts = document.querySelectorAll('.quiz-option');
       opts.forEach((o,i) => {
         o.style.pointerEvents = 'none';
-        if (i === correct) o.classList.add('correct');
+        if (i === correct)          o.classList.add('correct');
         else if (i === idx && idx !== correct) o.classList.add('wrong');
-        else o.classList.add('selected');
       });
-      if (idx === correct) score++;
+
+      if (idx === correct) {
+        score++;
+        combo++;
+        if (combo >= 3) triggerCombo();
+      } else {
+        combo = 0;
+        shakeScreen();
+      }
+      updateComboDisplay();
       document.getElementById('next-btn').disabled = false;
-      document.getElementById('next-btn').textContent = currentQ < questions.length-1 ? 'Câu tiếp theo →' : 'Xem kết quả';
+      document.getElementById('next-btn').textContent = currentQ < questions.length-1
+        ? 'Câu tiếp theo →' : 'Xem kết quả';
     };
+
+    function shakeScreen() {
+      const card = document.getElementById('question-card');
+      card.classList.add('shake');
+      setTimeout(() => card.classList.remove('shake'), 600);
+    }
+
+    function triggerCombo() {
+      const c = document.getElementById('combo-container');
+      const el = document.createElement('div');
+      el.className = 'combo-banner';
+      el.textContent = combo >= 5 ? `🔥 INSANE x${combo}!` : combo >= 4 ? `🔥 ULTRA x${combo}!` : `🔥 COMBO x${combo}!`;
+      c.appendChild(el);
+      setTimeout(() => el.remove(), 1400);
+    }
+
+    function updateComboDisplay() {
+      const el = document.getElementById('combo-display');
+      document.getElementById('combo-count').textContent = combo;
+      el.classList.toggle('hidden', combo < 2);
+    }
 
     window.nextQuestion = async function() {
       currentQ++;
       if (currentQ < questions.length) { renderQuestion(); return; }
-      // Show results
+      stopTimer();
+      const elapsed = getElapsedSeconds();
+
       document.getElementById('quiz-playing').classList.add('hidden');
+      document.getElementById('timer-display').classList.add('hidden');
       document.getElementById('quiz-results').classList.remove('hidden');
-      const passed = score >= passMark;
-      document.getElementById('result-emoji').textContent   = passed ? '🎉' : '😅';
-      document.getElementById('result-title').textContent   = passed ? 'Xuất Sắc! Bạn đã vượt qua!' : 'Chưa đạt. Thử lại nhé!';
+
+      const passed     = score >= passMark;
+      const isSpeedRun = passed && elapsed <= SPEED_LIMIT;
+      document.getElementById('result-emoji').textContent    = passed ? '🎉' : '😅';
+      document.getElementById('result-title').textContent    = passed ? 'Xuất Sắc! Bạn đã vượt qua!' : 'Chưa đạt. Thử lại nhé!';
       document.getElementById('result-subtitle').textContent = passed ? 'SAT Map Reader Badge đã được mở khoá!' : `Cần đúng ít nhất ${passMark} câu.`;
-      document.getElementById('result-score').textContent   = `${score}/${questions.length}`;
+      document.getElementById('result-score').textContent    = `${score}/${questions.length}`;
+      document.getElementById('time-taken').textContent      = `⏱️ ${elapsed} giây`;
+
+      if (isSpeedRun) {
+        document.getElementById('speed-result').innerHTML = `
+          <div style="background:linear-gradient(90deg,#D97706,#F59E0B);border-radius:12px;padding:12px 18px;text-align:center;margin-bottom:4px;">
+            <p style="color:#fff;font-weight:900;font-size:18px;">⚡ SPEED RUN! +10 Bonus Points!</p>
+            <p style="color:#FEF3C7;font-size:12px;margin-top:2px;">Bạn hoàn thành trong ${elapsed}s — nhanh như tia sét!</p>
+          </div>`;
+        document.getElementById('speed-result').classList.remove('hidden');
+      }
+
       document.getElementById('result-actions').innerHTML = passed
         ? '<a href="dashboard.html" class="btn-primary">🏠 Về Mission Hub</a>'
         : '<button onclick="startQuiz()" class="btn-primary mb-3">🔄 Thử lại</button><a href="dashboard.html" class="btn-secondary">← Home</a>';
@@ -204,24 +314,49 @@
           quizScore: Math.max(cur.quizScore||0, score),
         };
         if (passed && !cur.quizPassed) {
+          let bonusPts = 20;
           updates.quizPassed = true;
           updates.points = (cur.points||0) + 20;
-          await updateDoc(doc(db,'members',session.memberId,'badges','B03'), { unlocked:true, unlockedAt:serverTimestamp() });
+
+          if (isSpeedRun) {
+            bonusPts += 10;
+            updates.points += 10;
+            updates['achievements.speedRunner'] = true;
+            updates['achievements.speedRunTime'] = elapsed;
+          }
+
+          const batch = writeBatch(db);
+          batch.update(doc(db,'members',session.memberId), updates);
+          batch.set(doc(db,'members',session.memberId,'badges','B03'),
+            { unlocked:true, unlockedAt:serverTimestamp(), adminOverride:false, points:20 }, { merge:true });
+          await batch.commit();
           await checkFullExplorer();
+        } else {
+          await updateDoc(doc(db,'members',session.memberId), updates);
         }
-        await updateDoc(doc(db,'members',session.memberId), updates);
+
+        // Rank reveal — count members who have passed quiz
+        if (passed) {
+          const allSnap = await getDocs(collection(db,'members'));
+          const passedCount = allSnap.docs.filter(d => d.data().quizPassed).length;
+          const totalCount  = allSnap.size;
+          document.getElementById('rank-text').textContent = `#${passedCount} / ${totalCount}`;
+          document.getElementById('rank-sub').textContent  = `trong số những người đã vượt qua quiz`;
+          document.getElementById('rank-reveal').classList.remove('hidden');
+        }
       } catch {}
     };
 
     async function checkFullExplorer() {
       try {
-        const badgeIds = ['B01','B02','B03','B04','B05','B06'];
-        const snaps = await Promise.all(badgeIds.map(id => getDoc(doc(db,'members',session.memberId,'badges',id))));
-        const allDone = snaps.every(s => s.exists() && s.data().unlocked);
-        if (allDone) {
-          await updateDoc(doc(db,'members',session.memberId,'badges','B07'), { unlocked:true, unlockedAt:serverTimestamp() });
+        const snaps = await Promise.all(['B01','B02','B03','B04','B05','B06']
+          .map(id => getDoc(doc(db,'members',session.memberId,'badges',id))));
+        if (snaps.every(s=>s.exists()&&s.data().unlocked)) {
           const ms = await getDoc(doc(db,'members',session.memberId));
-          await updateDoc(doc(db,'members',session.memberId), { points:(ms.data().points||0)+50 });
+          await writeBatch(db)
+            .set(doc(db,'members',session.memberId,'badges','B07'), {unlocked:true,unlockedAt:serverTimestamp(),adminOverride:false,points:50},{merge:true})
+            .update(doc(db,'members',session.memberId),{points:(ms.data().points||0)+50})
+            .commit();
         }
       } catch {}
     }

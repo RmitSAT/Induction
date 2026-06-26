@@ -8,8 +8,13 @@
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
   <script>tailwind.config={theme:{extend:{colors:{'ocean-deep':'#03045E','ocean-dark':'#023E8A','ocean-mid':'#0077B6','ocean-teal':'#0096C7','sky-blue':'#00B4D8','foam-blue':'#ADE8F4','mist-blue':'#CAF0F8','coral-red':'#D62828'},fontFamily:{nunito:['Nunito','sans-serif']}}}}</script>
+  <style>
+    .tab-btn { transition: all 0.2s; }
+    .racing-bar-fill { transition: width 1.4s cubic-bezier(.25,.46,.45,.94); }
+  </style>
 </head>
 <body class="font-nunito bg-mist-blue">
+  <div id="toast-container"></div>
 
   <header class="top-header">
     <a href="dashboard.html" class="text-foam-blue font-bold text-sm">&larr; Home</a>
@@ -19,26 +24,36 @@
 
   <div class="page-content px-4 pb-10">
 
-    <div class="bg-ocean-gradient rounded-2xl p-4 mb-5 text-center">
+    <div class="bg-ocean-gradient rounded-2xl p-4 mb-4 text-center">
       <h1 class="text-white font-black text-xl">🏆 Leaderboard</h1>
       <p class="text-sky-blue text-sm">Sứa Khám Phá 2026B</p>
     </div>
 
     <!-- Tabs -->
-    <div class="flex bg-white rounded-xl p-1 mb-5 shadow-sm">
-      <button id="tab-teams" onclick="switchTab('teams')" class="flex-1 py-2 rounded-lg font-bold text-sm bg-ocean-mid text-white transition-all">🚢 Teams</button>
-      <button id="tab-individuals" onclick="switchTab('individuals')" class="flex-1 py-2 rounded-lg font-bold text-sm text-gray-400 transition-all">👤 Cá Nhân</button>
+    <div class="flex bg-white rounded-xl p-1 mb-4 shadow-sm gap-1">
+      <button id="tab-teams"      onclick="switchTab('teams')"      class="tab-btn flex-1 py-2 rounded-lg font-bold text-xs bg-ocean-mid text-white">🚢 Teams</button>
+      <button id="tab-individuals" onclick="switchTab('individuals')" class="tab-btn flex-1 py-2 rounded-lg font-bold text-xs text-gray-400">👤 Cá Nhân</button>
+      <button id="tab-typebattle" onclick="switchTab('typebattle')"  class="tab-btn flex-1 py-2 rounded-lg font-bold text-xs text-gray-400">⚔️ Type</button>
     </div>
 
     <div id="loading" class="text-center py-10"><div class="spinner mx-auto"></div></div>
 
-    <!-- Teams tab -->
-    <div id="teams-tab" class="hidden space-y-3"></div>
+    <!-- Teams tab — racing bars -->
+    <div id="teams-tab" class="hidden">
+      <div id="teams-racing" class="card p-4 mb-4"></div>
+    </div>
 
     <!-- Individuals tab -->
     <div id="individuals-tab" class="hidden">
-      <!-- Fastest explorer highlight -->
-      <div id="fastest-card" class="hidden card p-4 mb-4 text-center border-2 border-yellow-400 bg-yellow-50">
+      <!-- Lightning Diver Hall of Fame -->
+      <div id="lightning-hall" class="hidden mb-4">
+        <div class="flex items-center gap-2 mb-2">
+          <span class="text-yellow-500 font-black text-sm">⚡ Lightning Diver Hall of Fame</span>
+        </div>
+        <div id="lightning-list" class="space-y-2"></div>
+      </div>
+      <!-- Fastest Full Explorer -->
+      <div id="fastest-card" class="hidden card p-4 mb-4 border-2 border-yellow-400 bg-yellow-50">
         <div class="text-2xl mb-1">⚡</div>
         <p class="text-xs text-gray-500 font-semibold">Fastest Full Explorer</p>
         <p class="font-black text-ocean-dark" id="fastest-name">—</p>
@@ -47,7 +62,18 @@
       <div id="individuals-list" class="space-y-2"></div>
     </div>
 
-    <p class="text-center text-xs text-gray-400 mt-5">Tự động cập nhật mỗi 30 giây</p>
+    <!-- SAT Type Battle tab -->
+    <div id="typebattle-tab" class="hidden">
+      <div class="card p-4 mb-4">
+        <h3 class="font-black text-ocean-dark mb-1">⚔️ SAT Type Battle</h3>
+        <p class="text-xs text-gray-500 mb-4">Loại Sứa nào đang dẫn đầu? Điểm cộng dồn toàn team!</p>
+        <div id="type-bars"></div>
+        <p class="text-xs text-gray-400 mt-4 text-center">Cập nhật mỗi 30 giây</p>
+      </div>
+      <div id="type-members" class="space-y-2"></div>
+    </div>
+
+    <p class="text-center text-xs text-gray-400 mt-4">Tự động cập nhật mỗi 30 giây</p>
   </div>
 
   <nav class="bottom-nav">
@@ -60,78 +86,148 @@
   <script type="module">
     import { requireAuth } from './js/auth.js';
     import { db } from './js/firebase-config.js';
-    import { collection, getDocs, getDoc, doc, query, orderBy, limit } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+    import { startLiveEventListener } from './js/live-events.js';
+    import { collection, getDocs, getDoc, doc } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
     const session = requireAuth();
     let activeTab = 'teams';
 
+    const TYPE_META = {
+      spotlight: { label:'⭐ Spotlight', color:'#7C3AED' },
+      flow:      { label:'🌊 Flow',      color:'#0077B6' },
+      care:      { label:'💙 Care',      color:'#DB2777' },
+      creative:  { label:'🎨 Creative',  color:'#D97706' },
+      calm:      { label:'🧘 Calm',      color:'#059669' },
+    };
+    const RANK_ICONS = ['🥇','🥈','🥉'];
+
     window.switchTab = function(tab) {
       activeTab = tab;
-      document.getElementById('teams-tab').classList.toggle('hidden', tab !== 'teams');
-      document.getElementById('individuals-tab').classList.toggle('hidden', tab !== 'individuals');
-      document.getElementById('tab-teams').className       = `flex-1 py-2 rounded-lg font-bold text-sm ${tab==='teams'?'bg-ocean-mid text-white':'text-gray-400'} transition-all`;
-      document.getElementById('tab-individuals').className = `flex-1 py-2 rounded-lg font-bold text-sm ${tab==='individuals'?'bg-ocean-mid text-white':'text-gray-400'} transition-all`;
+      ['teams','individuals','typebattle'].forEach(t => {
+        const el = document.getElementById(`${t}-tab`);
+        const btn = document.getElementById(`tab-${t}`);
+        const isActive = t === tab;
+        el.classList.toggle('hidden', !isActive);
+        btn.className = `tab-btn flex-1 py-2 rounded-lg font-bold text-xs ${isActive?'bg-ocean-mid text-white':'text-gray-400'}`;
+      });
     };
-
-    const RANK_ICONS = ['🥇','🥈','🥉'];
 
     async function loadLeaderboard() {
       try {
-        // Teams
-        const teamsSnap = await getDocs(collection(db,'teams'));
-        const teams = teamsSnap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.score||0)-(a.score||0));
+        const [teamsSnap, membersSnap, metaSnap] = await Promise.all([
+          getDocs(collection(db,'teams')),
+          getDocs(collection(db,'members')),
+          getDoc(doc(db,'leaderboard','meta')).catch(()=>null)
+        ]);
 
-        document.getElementById('teams-tab').innerHTML = teams.length === 0
-          ? '<div class="card p-5 text-center text-gray-500">Chưa có team nào được tạo</div>'
-          : teams.map((t,i) => `
-              <div class="card p-4 flex items-center gap-3 ${i<3?['lb-rank-1','lb-rank-2','lb-rank-3'][i]:''}">
-                <span class="text-2xl w-8 text-center">${i<3?RANK_ICONS[i]:`#${i+1}`}</span>
-                <div class="flex-1">
-                  <p class="font-black text-ocean-dark">${t.name}</p>
-                  <p class="text-xs text-gray-500">${(t.memberIds||[]).length} thành viên</p>
+        const teams   = teamsSnap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.score||0)-(a.score||0));
+        const members = membersSnap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.points||0)-(a.points||0));
+
+        // ── Teams Racing Bars ──────────────────────────────────────────────────
+        const maxScore = teams.length ? Math.max(...teams.map(t=>t.score||0), 1) : 1;
+        document.getElementById('teams-racing').innerHTML = teams.length === 0
+          ? '<p class="text-gray-500 text-center text-sm">Chưa có team nào được tạo</p>'
+          : teams.map((t,i) => {
+              const pct = Math.max(((t.score||0)/maxScore)*100, 3);
+              const rankClass = i < 3 ? `rank-${i+1}` : '';
+              return `<div class="racing-bar-wrap">
+                <div class="racing-bar-label">
+                  <span>${i<3?RANK_ICONS[i]+' ':''}${t.name}</span>
+                  <span class="text-ocean-mid">${t.score||0} pts</span>
                 </div>
-                <div class="text-right">
-                  <p class="font-black text-ocean-mid text-lg">${t.score||0}</p>
-                  <p class="text-xs text-gray-400">pts</p>
+                <div class="racing-bar-track">
+                  <div class="racing-bar-fill ${rankClass}" style="width:0%" data-pct="${pct}"></div>
                 </div>
-              </div>`).join('');
+              </div>`;
+            }).join('');
+        // Animate bars after paint
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          document.querySelectorAll('.racing-bar-fill[data-pct]').forEach(el => {
+            el.style.width = el.dataset.pct + '%';
+          });
+        }));
 
-        // Individuals — get top members by points (limit 30)
-        const membersSnap = await getDocs(collection(db,'members'));
-        const members = membersSnap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.points||0)-(a.points||0)).slice(0,30);
-
-        document.getElementById('individuals-list').innerHTML = members.map((m,i) => {
+        // ── Individuals ────────────────────────────────────────────────────────
+        const top30 = members.slice(0, 30);
+        document.getElementById('individuals-list').innerHTML = top30.map((m,i) => {
           const isMe = m.id === session.memberId;
-          return `
-            <div class="card p-3 flex items-center gap-3 ${isMe?'border-2 border-sky-blue':''}">
-              <span class="font-black text-gray-400 w-6 text-center text-sm">${i<3?RANK_ICONS[i]:`${i+1}`}</span>
-              <div class="w-8 h-8 rounded-full overflow-hidden bg-sky-blue flex-shrink-0 flex items-center justify-center">
-                ${m.photoURL?`<img src="${m.photoURL}" class="w-full h-full object-cover">`:`<span class="text-xs font-black text-ocean-dark">${m.name.slice(0,2).toUpperCase()}</span>`}
-              </div>
-              <div class="flex-1">
+          return `<div class="card p-3 flex items-center gap-3 ${isMe?'border-2 border-sky-blue':''}">
+            <span class="font-black text-gray-400 w-6 text-center text-sm">${i<3?RANK_ICONS[i]:`${i+1}`}</span>
+            <div class="w-8 h-8 rounded-full overflow-hidden bg-sky-blue flex-shrink-0 flex items-center justify-center">
+              ${m.photoURL?`<img src="${m.photoURL}" class="w-full h-full object-cover">`:`<span class="text-xs font-black text-ocean-dark">${m.name?.slice(0,2).toUpperCase()}</span>`}
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-1 flex-wrap">
                 <p class="font-bold text-ocean-dark text-sm">${m.name}${isMe?' 👈':''}</p>
-                <p class="text-xs text-gray-400">${m.status} · ${m.satType||''}</p>
+                ${m.achievements?.speedRunner?'<span class="speed-chip">⚡</span>':''}
               </div>
-              <div class="text-right">
-                <p class="font-black text-ocean-mid">${m.points||0}</p>
-                <p class="text-xs text-gray-400">pts</p>
-              </div>
-            </div>`;
+              <p class="text-xs text-gray-400">${m.status||''} · ${m.satType||''}</p>
+            </div>
+            <div class="text-right flex-shrink-0">
+              <p class="font-black text-ocean-mid">${m.points||0}</p>
+              <p class="text-xs text-gray-400">pts</p>
+            </div>
+          </div>`;
         }).join('');
 
-        // Fastest Full Explorer
-        const fastest = members.find(m => m.id); // simplified — full logic checks B07 unlockedAt
-        const metaSnap = await getDoc(doc(db,'leaderboard','meta')).catch(()=>null);
-        if (metaSnap && metaSnap.exists()) {
+        // Lightning Diver Hall of Fame
+        const lightningDivers = members.filter(m=>m.achievements?.speedRunner)
+          .sort((a,b)=>(a.achievements?.speedRunTime||999)-(b.achievements?.speedRunTime||999))
+          .slice(0,3);
+        if (lightningDivers.length) {
+          document.getElementById('lightning-hall').classList.remove('hidden');
+          document.getElementById('lightning-list').innerHTML = lightningDivers.map((m,i)=>`
+            <div class="lightning-card">
+              <span style="font-size:22px">${['🥇','🥈','🥉'][i]||'⚡'}</span>
+              <div class="flex-1">
+                <p style="color:#fff;font-weight:800;font-size:14px">${m.name}</p>
+                <p style="color:#ADE8F4;font-size:11px">⚡ ${m.achievements.speedRunTime||'?'}s · +10 Lightning pts</p>
+              </div>
+              <span style="color:#F59E0B;font-weight:900;font-size:13px">#${i+1}</span>
+            </div>`).join('');
+        }
+
+        // Fastest explorer
+        if (metaSnap?.exists()) {
           const meta = metaSnap.data();
           if (meta.fastestExplorerName) {
             document.getElementById('fastest-name').textContent = meta.fastestExplorerName;
             document.getElementById('fastest-time').textContent = meta.fastestExplorerTime
-              ? new Date(meta.fastestExplorerTime.seconds*1000).toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'})
-              : '';
+              ? new Date(meta.fastestExplorerTime.seconds*1000).toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'}) : '';
             document.getElementById('fastest-card').classList.remove('hidden');
           }
         }
+
+        // ── SAT Type Battle ────────────────────────────────────────────────────
+        const typePoints = { spotlight:0, flow:0, care:0, creative:0, calm:0 };
+        const typeCounts = { spotlight:0, flow:0, care:0, creative:0, calm:0 };
+        members.forEach(m => {
+          if (m.satType && typePoints.hasOwnProperty(m.satType)) {
+            typePoints[m.satType] += m.points||0;
+            typeCounts[m.satType]++;
+          }
+        });
+        const maxPts = Math.max(...Object.values(typePoints), 1);
+        const typesSorted = Object.entries(typePoints).sort((a,b)=>b[1]-a[1]);
+
+        document.getElementById('type-bars').innerHTML = typesSorted.map(([type, pts],i) => {
+          const meta = TYPE_META[type];
+          const pct  = Math.max((pts/maxPts)*100, 2);
+          return `<div class="racing-bar-wrap">
+            <div class="racing-bar-label">
+              <span>${meta.label} <span style="color:#94A3B8;font-size:11px">(${typeCounts[type]} Sứa)</span></span>
+              <span style="color:${meta.color};font-weight:900">${pts} pts</span>
+            </div>
+            <div class="racing-bar-track" style="background:#E0F2FE">
+              <div class="racing-bar-fill type-bar-fill type-${type}" style="width:0%" data-pct="${pct}"></div>
+            </div>
+          </div>`;
+        }).join('');
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          document.querySelectorAll('.type-bar-fill[data-pct]').forEach(el => {
+            el.style.width = el.dataset.pct + '%';
+          });
+        }));
 
         document.getElementById('loading').classList.add('hidden');
         document.getElementById('teams-tab').classList.remove('hidden');
@@ -139,6 +235,18 @@
         document.getElementById('loading').innerHTML = '<p class="text-coral-red font-bold text-center">Lỗi tải dữ liệu.</p>';
       }
     }
+
+    // B07 shoutout toast
+    startLiveEventListener((type, payload) => {
+      if (type === 'b07-shoutout') {
+        const c = document.getElementById('toast-container');
+        const t = document.createElement('div');
+        t.className = 'toast toast-success';
+        t.textContent = `🏆 ${payload.memberName} vừa trở thành Full Explorer! 🎊`;
+        c.appendChild(t); setTimeout(()=>t.classList.add('show'),10);
+        setTimeout(()=>{t.classList.remove('show');setTimeout(()=>t.remove(),300);},6000);
+      }
+    });
 
     loadLeaderboard();
     setInterval(loadLeaderboard, 30000);
