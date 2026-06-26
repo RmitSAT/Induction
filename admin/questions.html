@@ -61,6 +61,24 @@
         <button onclick="seedQuizDefaults()" class="btn-secondary" style="width:auto;display:inline-block">🌱 Seed Defaults</button>
         <button onclick="saveAllQuiz()" class="btn-primary ml-auto" style="width:auto;display:inline-block">💾 Save All</button>
       </div>
+
+      <!-- Reset section -->
+      <div class="mt-6 border-2 border-red-200 bg-red-50 rounded-2xl p-4">
+        <div class="flex items-start gap-3">
+          <span class="text-2xl mt-0.5">⚠️</span>
+          <div class="flex-1">
+            <h3 class="font-black text-coral-red text-sm mb-1">Reset Quiz for All Members</h3>
+            <p class="text-xs text-gray-600 mb-1">
+              Clears everyone's quiz badge (B03), score, attempt count, and speed-run achievement.
+              Points earned from the quiz will be subtracted. Members can then retake the quiz and earn points again.
+            </p>
+            <p class="text-xs text-red-500 font-bold mb-3">This action cannot be undone.</p>
+            <button onclick="resetAllQuiz()" class="btn-danger btn-sm" style="width:auto;padding:8px 18px">
+              🔄 Reset Quiz for All Members
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -428,6 +446,67 @@
       }
       showLoader(false);
       loadQuiz();
+    };
+
+    // ── Reset quiz for all members ─────────────────────────────────────────────
+    window.resetAllQuiz = async function() {
+      const confirmed = confirm(
+        'Reset the quiz for ALL members?\n\n' +
+        '• Quiz badge (B03) removed for everyone\n' +
+        '• Scores, attempt counts, speed-run achievements cleared\n' +
+        '• Points earned from quiz will be subtracted\n\n' +
+        'Members can retake and earn points again.\n\nThis CANNOT be undone.'
+      );
+      if (!confirmed) return;
+
+      showLoader(true);
+      try {
+        const allSnap = await getDocs(collection(db, 'members'));
+        const members = allSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+        let batch = writeBatch(db);
+        let ops   = 0;
+        const BATCH_LIMIT = 490; // Firestore max is 500 ops/batch
+
+        for (const m of members) {
+          const memberRef = doc(db, 'members', m.id);
+          const b03Ref    = doc(db, 'members', m.id, 'badges', 'B03');
+
+          // Subtract points that were awarded for passing the quiz
+          let pointsToRemove = 0;
+          if (m.quizPassed)                    pointsToRemove += 20;
+          if (m.achievements?.speedRunner)      pointsToRemove += 10;
+          const newPoints = Math.max(0, (m.points || 0) - pointsToRemove);
+
+          const updates = {
+            quizPassed:    false,
+            quizScore:     0,
+            quizAttempts:  0,
+            points:        newPoints
+          };
+          if (m.achievements?.speedRunner) {
+            updates['achievements.speedRunner']  = false;
+            updates['achievements.speedRunTime'] = null;
+          }
+
+          batch.update(memberRef, updates);
+          batch.delete(b03Ref);
+          ops += 2;
+
+          if (ops >= BATCH_LIMIT) {
+            await batch.commit();
+            batch = writeBatch(db);
+            ops   = 0;
+          }
+        }
+
+        if (ops > 0) await batch.commit();
+
+        showToast(`Quiz reset for ${members.length} member(s) ✅`, 'success');
+      } catch (e) {
+        showToast('Reset failed: ' + e.message, 'error');
+      }
+      showLoader(false);
     };
 
     window.deleteQuiz = async function(id) {
