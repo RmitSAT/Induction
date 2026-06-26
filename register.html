@@ -101,6 +101,12 @@
         </div>
       </div>
 
+      <label class="label mb-1">Fun Fact / Bio của bạn <span class="text-coral-red">*</span></label>
+      <p class="text-xs text-gray-500 mb-2">Viết điều thú vị về bản thân — bạn bè sẽ thấy khi tìm kiếm bạn trong game! (tối thiểu 10 ký tự)</p>
+      <textarea id="bio" rows="3" maxlength="200"
+        class="input-field mb-5 resize-none" style="height:auto"
+        placeholder="VD: Mình thích ăn bánh tráng trộn và nghiện xem anime lúc 2 giờ sáng 🌙"></textarea>
+
       <div class="bg-sky-blue/10 border border-sky-blue rounded-xl p-3 mb-5 text-sm text-ocean-dark">
         🎯 Khảo sát <strong>True/False</strong> sẽ xuất hiện sau khi bạn đăng nhập lần đầu tiên!
       </div>
@@ -215,6 +221,9 @@
       if (n === 3) {
         if (!selectedStatus)  { showToast('Vui lòng chọn Newbie / Oldbie!', 'error'); return; }
         if (!selectedSatType) { showToast('Vui lòng chọn Type of SAT!', 'error'); return; }
+        if (document.getElementById('bio').value.trim().length < 10) {
+          showToast('Viết ít nhất 10 ký tự cho Fun Fact của bạn!', 'error'); return;
+        }
       }
       [1,2,3].forEach(i => {
         document.getElementById(`step-${i}`).classList.add('hidden');
@@ -297,6 +306,7 @@
           status: selectedStatus,
           satType: selectedSatType,
           photoURL,
+          bio: document.getElementById('bio').value.trim(),
           accessCode: code,
           checkedIn: true,
           checkinTime: serverTimestamp(),

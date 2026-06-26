@@ -41,6 +41,10 @@
           <span class="chip chip-newbie" id="display-status"></span>
           <span class="chip chip-sat" id="display-sat-type"></span>
         </div>
+        <div id="evo-display" class="mt-3 hidden">
+          <span id="evo-emoji" class="evo-stage text-4xl"></span>
+          <p id="evo-label" class="text-sky-blue text-xs font-bold mt-1"></p>
+        </div>
       </div>
 
       <!-- Info card -->
@@ -66,6 +70,11 @@
             <label class="label">Trường</label>
             <p id="view-school" class="text-ocean-dark font-semibold"></p>
             <input id="edit-school" type="text" class="input-field hidden">
+          </div>
+          <div>
+            <label class="label">Fun Fact / Bio</label>
+            <p id="view-bio" class="text-ocean-dark font-semibold text-sm leading-relaxed"></p>
+            <textarea id="edit-bio" rows="3" maxlength="200" class="input-field hidden resize-none" style="height:auto" placeholder="Điều thú vị về bạn..."></textarea>
           </div>
         </div>
         <button id="save-btn" onclick="saveProfile()" class="btn-primary mt-5 hidden">💾 Lưu thay đổi</button>
@@ -98,6 +107,7 @@
     import { requireAuth, clearSession, setSession } from './js/auth.js';
     import { db, compressToBase64 } from './js/firebase-config.js';
     import { doc, getDoc, updateDoc } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+    import { getEvolutionStage } from './js/sfx.js';
 
     const session = requireAuth();
     let member = null;
@@ -127,11 +137,21 @@
       document.getElementById('view-dob').textContent    = member.dateOfBirth || '—';
       document.getElementById('view-major').textContent  = member.major  || '—';
       document.getElementById('view-school').textContent = member.school || '—';
+      document.getElementById('view-bio').textContent    = member.bio   || '—';
 
       document.getElementById('edit-name').value   = member.name;
       document.getElementById('edit-dob').value    = member.dateOfBirth || '';
       document.getElementById('edit-major').value  = member.major  || '';
       document.getElementById('edit-school').value = member.school || '';
+      document.getElementById('edit-bio').value    = member.bio   || '';
+
+      // Profile evolution
+      const evo = getEvolutionStage(member.points || 0);
+      const evoEmoji = document.getElementById('evo-emoji');
+      evoEmoji.textContent = evo.emoji;
+      evoEmoji.className   = `evo-stage ${evo.cls} text-4xl`;
+      document.getElementById('evo-label').textContent = evo.vi;
+      document.getElementById('evo-display').classList.remove('hidden');
 
       document.getElementById('access-code-display').textContent = member.accessCode;
       new QRCode(document.getElementById('qr-code'), { text: member.accessCode, width:160, height:160, colorDark:'#03045E', colorLight:'#CAF0F8' });
@@ -144,7 +164,7 @@
       editMode = !editMode;
       const btn = document.getElementById('edit-btn');
       btn.textContent = editMode ? 'Huỷ' : 'Chỉnh sửa';
-      ['name','dob','major','school'].forEach(f => {
+      ['name','dob','major','school','bio'].forEach(f => {
         document.getElementById(`view-${f}`).classList.toggle('hidden', editMode);
         document.getElementById(`edit-${f}`).classList.toggle('hidden', !editMode);
       });
@@ -166,6 +186,7 @@
           dateOfBirth: document.getElementById('edit-dob').value,
           major:       document.getElementById('edit-major').value.trim(),
           school:      document.getElementById('edit-school').value.trim(),
+          bio:         document.getElementById('edit-bio').value.trim(),
         };
         if (newPhotoBase64) {
           updates.photoURL = newPhotoBase64;

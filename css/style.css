@@ -859,3 +859,74 @@ body {
   .modal-sheet { border-radius: 24px; margin: 20px; }
   .radar-outer { width: 320px; height: 320px; }
 }
+
+/* ══════════════════════════════════════════════════════
+   PHASE 2 — Badge animation · Evolution · SFX
+   ══════════════════════════════════════════════════════ */
+
+/* ── Badge unlock full-screen overlay ── */
+.badge-unlock-overlay {
+  position: fixed; inset: 0; z-index: 9999;
+  background: rgba(3,4,94,0.93);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  overflow: hidden;
+  animation: bu-in 0.35s ease-out;
+}
+@keyframes bu-in { from { opacity:0 } to { opacity:1 } }
+.badge-unlock-overlay.fade-out { animation: bu-out 0.5s ease forwards; }
+@keyframes bu-out { to { opacity:0; transform:scale(1.04) } }
+
+.badge-unlock-emoji {
+  font-size: 80px; position: relative; z-index: 2;
+  animation: bu-pop 0.55s cubic-bezier(0.175,0.885,0.32,1.275) both;
+}
+@keyframes bu-pop { from { transform:scale(0) rotate(-20deg); opacity:0 } to { transform:scale(1) rotate(0); opacity:1 } }
+
+.badge-unlock-title {
+  position: relative; z-index: 2;
+  color: #ADE8F4; font-weight: 900; font-size: 20px;
+  margin-top: 16px; font-family: 'Nunito',sans-serif; text-align:center;
+  animation: bu-slide 0.4s 0.2s ease both;
+}
+.badge-unlock-sub {
+  position: relative; z-index: 2;
+  color: #00B4D8; font-size: 15px; font-weight: 800;
+  margin-top: 6px; font-family: 'Nunito',sans-serif;
+  animation: bu-slide 0.4s 0.3s ease both;
+}
+@keyframes bu-slide { from { opacity:0; transform:translateY(12px) } to { opacity:1; transform:none } }
+
+/* ── Rising bubble particles ── */
+.badge-bubble {
+  position: absolute; border-radius: 50%;
+  background: rgba(0,180,216,0.35);
+  border: 1.5px solid rgba(173,232,244,0.6);
+  pointer-events: none;
+  animation: bubble-rise linear forwards;
+}
+@keyframes bubble-rise {
+  from { transform: translateY(0) scale(1); opacity: 0.8; }
+  to   { transform: translateY(-110vh) scale(0.4); opacity: 0; }
+}
+
+/* ── Profile evolution stages ── */
+.evo-stage { display: inline-block; line-height: 1; }
+.evo-stage.stage-egg  { animation: evo-wobble 2.2s ease-in-out infinite; }
+.evo-stage.stage-baby { animation: evo-float 2.5s ease-in-out infinite; }
+.evo-stage.stage-full { animation: evo-glow 2s ease-in-out infinite; }
+@keyframes evo-wobble { 0%,100%{transform:rotate(-6deg)} 50%{transform:rotate(6deg)} }
+@keyframes evo-float  { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-7px)} }
+@keyframes evo-glow   {
+  0%,100% { filter: drop-shadow(0 0 6px rgba(0,180,216,0.6)); }
+  50%     { filter: drop-shadow(0 0 22px rgba(0,180,216,1)) drop-shadow(0 0 8px #fff); }
+}
+
+/* ── Mute toggle btn ── */
+.mute-btn {
+  background: rgba(255,255,255,0.15); border: none; border-radius: 50%;
+  width: 32px; height: 32px; font-size: 16px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.2s; flex-shrink: 0;
+}
+.mute-btn:active { background: rgba(255,255,255,0.3); }

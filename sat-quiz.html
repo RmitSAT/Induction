@@ -38,8 +38,11 @@
   <header class="top-header">
     <a href="dashboard.html" class="text-foam-blue font-bold text-sm">&larr; Home</a>
     <span class="text-white font-black">🗺️ SAT Ocean Map</span>
-    <div id="timer-display" class="hidden text-white font-black text-sm bg-white bg-opacity-20 px-3 py-1 rounded-full">
-      ⏱️ <span id="timer-sec">60</span>s
+    <div class="flex items-center gap-2">
+      <button id="mute-btn" class="mute-btn" onclick="handleMute()" title="Tắt/bật âm">🔊</button>
+      <div id="timer-display" class="hidden text-white font-black text-sm bg-white bg-opacity-20 px-3 py-1 rounded-full">
+        ⏱️ <span id="timer-sec">60</span>s
+      </div>
     </div>
   </header>
 
@@ -154,8 +157,11 @@
       doc, getDoc, getDocs, collection, query, where,
       updateDoc, setDoc, serverTimestamp, writeBatch
     } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+    import { playBubblePop, playWrong, showBadgeUnlock, isMuted, toggleMute, syncMuteBtn } from './js/sfx.js';
 
     const session = requireAuth();
+    window.handleMute = function() { toggleMute(); syncMuteBtn('mute-btn'); };
+    syncMuteBtn('mute-btn');
 
     let questions     = [];
     let currentQ      = 0;
@@ -335,9 +341,11 @@
       const isCorrect = correctIdxs.includes(idx);
       if (isCorrect) {
         score++; combo++;
+        playBubblePop();
         if (combo >= 3) triggerCombo();
       } else {
         combo = 0;
+        playWrong();
         shakeScreen();
       }
       updateComboDisplay();
@@ -370,9 +378,11 @@
 
       if (isCorrect) {
         score++; combo++;
+        playBubblePop();
         if (combo >= 3) triggerCombo();
       } else {
         combo = 0;
+        playWrong();
         shakeScreen();
       }
       updateComboDisplay();
@@ -472,6 +482,7 @@
             { merge: true }
           );
           await batch.commit();
+          showBadgeUnlock('🗺️', 'SAT Ocean Map');
           await checkFullExplorer();
         } else {
           await updateDoc(doc(db, 'members', session.memberId), updates);

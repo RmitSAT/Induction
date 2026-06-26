@@ -234,6 +234,8 @@
   <header class="top-header">
     <a href="dashboard.html" class="text-foam-blue font-bold text-sm">&larr; Home</a>
     <span class="text-white font-black">🪸 Find Your Fellow</span>
+    <div class="flex items-center gap-2">
+    <button id="mute-btn" class="mute-btn" onclick="const m=toggleMute();syncMuteBtn('mute-btn')" title="Tắt/bật âm thanh">🔊</button>
     <button id="radar-header-btn" onclick="openConsentOrRadar()"
       style="display:flex;align-items:center;gap:6px;background:rgba(0,180,216,0.15);
              border:1px solid rgba(0,180,216,0.4);border-radius:20px;padding:4px 12px;
@@ -241,6 +243,7 @@
       <span id="radar-led" style="width:7px;height:7px;border-radius:50%;background:#475569;display:inline-block;"></span>
       SONAR
     </button>
+    </div>
   </header>
 
   <div class="page-content px-4 pb-10">
@@ -286,7 +289,7 @@
       <ul class="space-y-1 text-gray-600">
         <li>✅ Quét / nhập mã hoặc dùng <strong>SONAR</strong> tìm bạn gần đây</li>
         <li>🚫 Không quét mã của chính bạn</li>
-        <li>🔢 Mỗi người chỉ giúp tối đa 2 mảnh</li>
+        <li>🔢 Mỗi người chỉ giúp được <strong>1 mảnh</strong> — cần 10 người khác nhau!</li>
         <li>🎯 Đạt 6/10 mảnh → nhận huy hiệu Friendship Reef!</li>
       </ul>
     </div>
@@ -474,6 +477,7 @@
     import { requireAuth } from './js/auth.js';
     import { db } from './js/firebase-config.js';
     import { startLiveEventListener } from './js/live-events.js';
+    import { playBubblePop, showBadgeUnlock, isMuted, toggleMute, syncMuteBtn } from './js/sfx.js';
     import {
       doc, getDoc, getDocs, collection, query, where, addDoc,
       updateDoc, setDoc, serverTimestamp, runTransaction, arrayUnion, onSnapshot
@@ -540,7 +544,7 @@
       statements = sSnap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>a.order-b.order);
       const cfg  = cfgSnap.exists() ? cfgSnap.data() : {};
       fellowRequired = cfg.fellowTilesRequired || 6;
-      maxPerTarget   = cfg.maxTilesPerTarget   || 2;
+      maxPerTarget   = cfg.maxTilesPerTarget   || 1;
       unlockedTiles  = member.unlockedTiles    || [];
 
       // Build this member's unique card order (deterministic from their ID)
@@ -733,6 +737,7 @@
         unlockedTiles = newUnlocked; member.tileHelpers = tileHelpers;
 
         showVerifyResult('🎉',`${target.name.split(' ').pop()} nói TRUE! Mảnh #${activeTileIdx+1} mở!`,'','success');
+        playBubblePop();
         updateProgress(); renderTiles(); spawnConfetti();
         if (newUnlocked.length >= fellowRequired) await unlockFriendshipBadge();
         // Draw constellation when 6+ tiles unlocked
@@ -755,6 +760,7 @@
           { unlocked:true, unlockedAt:serverTimestamp(), adminOverride:false, points:30 }, { merge:true });
         document.getElementById('badge-banner').classList.remove('hidden');
         showToast('🪸 Friendship Reef Badge mở khoá! +30 điểm!','success');
+        showBadgeUnlock('🪸', 'Friendship Reef');
         await checkFullExplorer();
       } catch {}
     }
@@ -1287,6 +1293,7 @@
       showToast('⚡ TILE STORM bắt đầu! 3 phút mở khoá tất cả!','success');
     }
 
+    syncMuteBtn('mute-btn');
     load();
   </script>
 </body>

@@ -24,6 +24,7 @@
       </div>
     </div>
     <div class="flex items-center gap-3">
+      <button id="mute-btn" class="mute-btn" onclick="handleMute()" title="Tắt/bật âm thanh">🔊</button>
       <div class="bg-sky-blue text-ocean-dark font-black px-3 py-1 rounded-lg text-sm" id="header-points">0 pts</div>
       <a href="profile.html" title="Profile">
         <svg class="w-6 h-6 text-foam-blue" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -37,7 +38,8 @@
 
     <!-- Hero banner -->
     <div class="bg-ocean-gradient rounded-2xl p-5 mb-5 text-white text-center">
-      <div class="text-3xl mb-1">🪼</div>
+      <div class="text-4xl mb-1"><span id="evo-emoji" class="evo-stage stage-egg">🥚</span></div>
+      <p id="evo-label" class="text-sky-blue text-xs font-bold mb-1">Trứng Sứa 🥚</p>
       <h1 class="font-black text-xl">Mission Hub</h1>
       <p class="text-sky-blue text-sm mt-1">Sứa Khám Phá 2026B</p>
       <div class="mt-3 flex justify-center gap-4 text-center">
@@ -113,9 +115,13 @@
     import { requireAuth } from './js/auth.js';
     import { db } from './js/firebase-config.js';
     import { doc, getDoc, getDocs, updateDoc, collection, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+    import { getEvolutionStage, isMuted, toggleMute, syncMuteBtn } from './js/sfx.js';
 
     const session = requireAuth();
     if (!session) throw new Error('No session');
+
+    window.handleMute = function() { toggleMute(); syncMuteBtn('mute-btn'); };
+    syncMuteBtn('mute-btn');
 
     // ── T/F Survey helpers ────────────────────────────────────────────────────
     let _surveyStatements = [];
@@ -239,6 +245,13 @@
         document.getElementById('badge-count').textContent  = badgeCount;
         document.getElementById('fellow-count').textContent = `${member.fellowProgress||0}/10`;
         document.getElementById('header-points').textContent = `${totalPoints} pts`;
+
+        // Profile evolution
+        const evo = getEvolutionStage(totalPoints);
+        const evoEl = document.getElementById('evo-emoji');
+        evoEl.textContent = evo.emoji;
+        evoEl.className   = `evo-stage ${evo.cls}`;
+        document.getElementById('evo-label').textContent = evo.vi;
 
         // Render missions
         const list = document.getElementById('missions-list');
