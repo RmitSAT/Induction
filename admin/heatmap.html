@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Crowd Heatmap — SAT Admin</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/style.css">
+  <script>tailwind.config={theme:{extend:{colors:{'ocean-deep':'#03045E','ocean-dark':'#023E8A','ocean-mid':'#0077B6','ocean-teal':'#0096C7','sky-blue':'#00B4D8','foam-blue':'#ADE8F4','mist-blue':'#CAF0F8','coral-red':'#D62828'},fontFamily:{nunito:['Nunito','sans-serif']}}}}</script>
+</head>
+<body class="font-nunito bg-gray-50 min-h-screen">
+  <div id="toast-container"></div>
+
+  <nav class="bg-ocean-deep text-white px-6 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-4">
+      <a href="dashboard.html" class="text-foam-blue font-bold text-sm">&larr; Dashboard</a>
+      <span class="font-black text-lg">🗺️ Crowd Heatmap</span>
+    </div>
+    <div class="flex items-center gap-3">
+      <span id="live-badge" class="hidden bg-green-500 text-white text-xs font-black px-2 py-0.5 rounded-full animate-pulse">● LIVE</span>
+      <button onclick="doSignOut()" class="btn-danger btn-sm">Sign Out</button>
+    </div>
+  </nav>
+
+  <div class="max-w-4xl mx-auto px-4 py-6">
+
+    <!-- Stats bar -->
+    <div class="grid grid-cols-3 gap-4 mb-5">
+      <div class="card p-4 text-center">
+        <p class="text-3xl font-black text-green-600" id="stat-active">—</p>
+        <p class="text-xs text-gray-500 mt-1">Active Now</p>
+        <p class="text-xs text-gray-300">(&lt; 2 min)</p>
+      </div>
+      <div class="card p-4 text-center">
+        <p class="text-3xl font-black text-ocean-mid" id="stat-total">—</p>
+        <p class="text-xs text-gray-500 mt-1">Total Located</p>
+        <p class="text-xs text-gray-300">radar on</p>
+      </div>
+      <div class="card p-4 text-center">
+        <p class="text-2xl font-black text-gray-400" id="stat-age">—</p>
+        <p class="text-xs text-gray-500 mt-1">Last Update</p>
+        <p class="text-xs text-gray-300">most recent</p>
+      </div>
+    </div>
+
+    <!-- Canvas heatmap -->
+    <div class="card p-4 mb-5">
+      <div class="flex justify-between items-center mb-3">
+        <h2 class="font-black text-ocean-dark text-sm">Crowd Map</h2>
+        <span class="text-xs text-gray-400">Auto-updates via live listener</span>
+      </div>
+      <canvas id="heatmap" width="600" height="420"
+        style="width:100%;border-radius:12px;display:block;background:#03045E"></canvas>
+      <div class="flex justify-center gap-6 mt-2 text-xs text-gray-400">
+        <span>🟢 Active (&lt;2 min)</span>
+        <span>🟡 Recent (2–10 min)</span>
+        <span>⚫ Stale (&gt;10 min)</span>
+      </div>
+    </div>
+
+    <!-- Member list -->
+    <div class="card p-5">
+      <h2 class="font-black text-ocean-dark mb-3">📍 Members with Location Data</h2>
+      <div id="member-list">
+        <div class="text-center py-8"><div class="spinner mx-auto"></div><p class="text-sm text-gray-400 mt-3">Đang tải...</p></div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { auth, db } from '../js/firebase-config.js';
+    import { onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+    import { collection, onSnapshot }
+      from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+
+    let locations = [];
+    let unsub     = null;
+
+    onAuthStateChanged(auth, u => {
+      if (!u) { window.location.href = 'index.html'; return; }
+      document.getElementById('live-badge').classList.remove('hidden');
+      unsub = onSnapshot(collection(db,'memberLocations'), snap => {
+        locations = snap.docs.map(d => ({id:d.id,...d.data()}));
+        renderAll();
+      });
+    });
+
+    function renderAll() {
+      const now = Date.now();
+      const active = locations.filter(l => l.updatedAt && (now - l.updatedAt.seconds*1000) < 2*60*1000);
+
+      document.getElementById('stat-active').textContent = active.length;
+      document.getElementById('stat-total').textContent  = locations.length;
+
+      if (locations.length > 0) {
+        const latestSec = Math.max(...locations.map(l => l.updatedAt?.seconds||0));
+        const ageS = Math.max(0, Math.floor(now/1000 - latestSec));
+        document.getElementById('stat-age').textContent = ageS < 60 ? `${ageS}s` : `${Math.floor(ageS/60)}m`;
+      } else {
+        document.getElementById('stat-age').textContent = '—';
+      }
+
+      drawHeatmap();
+      renderMemberList();
+    }
+
+    function project(lat, lng, bounds, CW, CH) {
+      const px = 0.14;
+      const latSpan = bounds.maxLat - bounds.minLat || 0.001;
+      const lngSpan = bounds.maxLng - bounds.minLng || 0.001;
+      const x = ((lng - bounds.minLng) / lngSpan * (1-2*px) + px) * CW;
+      const y = (1 - ((lat - bounds.minLat) / latSpan * (1-2*px) + px)) * CH;
+      return {x, y};
+    }
+
+    function drawHeatmap() {
+      const canvas = document.getElementById('heatmap');
+      const ctx    = canvas.getContext('2d');
+      const CW = canvas.width, CH = canvas.height;
+
+      // Background gradient
+      const bg = ctx.createLinearGradient(0, 0, CW, CH);
+      bg.addColorStop(0,'#03045E'); bg.addColorStop(1,'#023E8A');
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, CW, CH);
+
+      // Grid lines (subtle)
+      ctx.strokeStyle = 'rgba(173,232,244,0.06)';
+      ctx.lineWidth = 1;
+      for (let gx = 0; gx < CW; gx += 60) { ctx.beginPath(); ctx.moveTo(gx,0); ctx.lineTo(gx,CH); ctx.stroke(); }
+      for (let gy = 0; gy < CH; gy += 60) { ctx.beginPath(); ctx.moveTo(0,gy); ctx.lineTo(CW,gy); ctx.stroke(); }
+
+      const locs = locations.filter(l => l.lat && l.lng);
+      if (!locs.length) {
+        ctx.fillStyle = '#ADE8F4';
+        ctx.font = 'bold 15px Nunito, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('Chưa có dữ liệu — thành viên cần bật Sonar Radar', CW/2, CH/2);
+        return;
+      }
+
+      const bounds = {
+        minLat: Math.min(...locs.map(l=>l.lat)),
+        maxLat: Math.max(...locs.map(l=>l.lat)),
+        minLng: Math.min(...locs.map(l=>l.lng)),
+        maxLng: Math.max(...locs.map(l=>l.lng)),
+      };
+
+      const now = Date.now();
+
+      // Heat layer for active members
+      ctx.globalAlpha = 0.55;
+      locs.forEach(l => {
+        const ageMs = now - (l.updatedAt?.seconds||0)*1000;
+        if (ageMs > 2*60*1000) return;
+        const {x,y} = project(l.lat, l.lng, bounds, CW, CH);
+        const r = 64;
+        const grad = ctx.createRadialGradient(x,y,0,x,y,r);
+        grad.addColorStop(0,'rgba(0,180,216,0.7)');
+        grad.addColorStop(0.4,'rgba(0,180,216,0.3)');
+        grad.addColorStop(1,'rgba(0,180,216,0)');
+        ctx.fillStyle = grad;
+        ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill();
+      });
+      ctx.globalAlpha = 1;
+
+      // Dots + labels
+      locs.forEach(l => {
+        const ageMs = now - (l.updatedAt?.seconds||0)*1000;
+        const {x,y} = project(l.lat, l.lng, bounds, CW, CH);
+        const isActive = ageMs < 2*60*1000;
+        const isRecent = ageMs < 10*60*1000;
+        const color = isActive ? '#00B4D8' : isRecent ? '#F59E0B' : '#6B7280';
+        const radius = isActive ? 6 : isRecent ? 4 : 3;
+
+        if (isActive) {
+          ctx.shadowColor = 'rgba(0,180,216,0.9)';
+          ctx.shadowBlur  = 10;
+        }
+        ctx.beginPath(); ctx.arc(x,y,radius,0,Math.PI*2);
+        ctx.fillStyle = color; ctx.fill();
+        ctx.shadowBlur = 0;
+
+        if (isActive) {
+          const label = (l.name||'').split(' ').pop();
+          ctx.fillStyle = 'rgba(202,240,248,0.9)';
+          ctx.font = 'bold 9px Nunito,sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText(label, x, y-9);
+        }
+      });
+    }
+
+    function renderMemberList() {
+      const now = Date.now();
+      const sorted = [...locations].sort((a,b)=>(b.updatedAt?.seconds||0)-(a.updatedAt?.seconds||0));
+      if (!sorted.length) {
+        document.getElementById('member-list').innerHTML =
+          '<p class="text-center text-gray-400 py-4">Chưa có dữ liệu vị trí. Thành viên cần bật Sonar Radar.</p>';
+        return;
+      }
+      document.getElementById('member-list').innerHTML = sorted.map(l => {
+        const ageMs = now - (l.updatedAt?.seconds||0)*1000;
+        const ageS  = Math.max(0, Math.floor(ageMs/1000));
+        const ageStr = ageS < 60 ? `${ageS}s` : `${Math.floor(ageS/60)}m ${ageS%60}s`;
+        const isActive = ageMs < 2*60*1000;
+        const isRecent = ageMs < 10*60*1000;
+        const dot = isActive ? '🟢' : isRecent ? '🟡' : '⚫';
+        const latStr = l.lat ? l.lat.toFixed(5) : '—';
+        const lngStr = l.lng ? l.lng.toFixed(5) : '—';
+        return `
+          <div class="flex items-center gap-3 py-2 border-b border-gray-100 text-sm">
+            <span class="text-base">${dot}</span>
+            <span class="flex-1 font-semibold text-ocean-dark truncate">${l.name||'—'}</span>
+            <span class="font-mono text-xs text-gray-400">${l.accessCode||''}</span>
+            <span class="text-xs text-gray-300 hidden sm:block">${latStr}, ${lngStr}</span>
+            <span class="text-xs text-gray-300 flex-shrink-0">${ageStr} trước</span>
+          </div>`;
+      }).join('');
+    }
+
+    window.doSignOut = async function() {
+      if (unsub) unsub();
+      await signOut(auth);
+      window.location.href = 'index.html';
+    };
+
+    function showToast(msg,type='info'){
+      const c=document.getElementById('toast-container');
+      const t=document.createElement('div');t.className=`toast toast-${type}`;t.textContent=msg;
+      c.appendChild(t);setTimeout(()=>t.classList.add('show'),10);
+      setTimeout(()=>{t.classList.remove('show');setTimeout(()=>t.remove(),300);},3500);
+    }
+  </script>
+</body>
+</html>

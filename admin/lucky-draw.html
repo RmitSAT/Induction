@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lucky Draw — SAT Admin</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/style.css">
+  <script>tailwind.config={theme:{extend:{colors:{'ocean-deep':'#03045E','ocean-dark':'#023E8A','ocean-mid':'#0077B6','ocean-teal':'#0096C7','sky-blue':'#00B4D8','foam-blue':'#ADE8F4','mist-blue':'#CAF0F8','coral-red':'#D62828'},fontFamily:{nunito:['Nunito','sans-serif']}}}}}</script>
+</head>
+<body class="font-nunito bg-gray-50 min-h-screen">
+  <div id="toast-container"></div>
+
+  <nav class="bg-ocean-deep text-white px-6 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-4">
+      <a href="dashboard.html" class="text-foam-blue font-bold text-sm">&larr; Dashboard</a>
+      <span class="font-black text-lg">🎟️ Lucky Draw</span>
+    </div>
+    <button onclick="doSignOut()" class="btn-danger btn-sm">Sign Out</button>
+  </nav>
+
+  <div class="max-w-3xl mx-auto px-4 py-6">
+
+    <!-- Settings -->
+    <div class="card p-5 mb-5">
+      <h2 class="font-black text-ocean-dark mb-3">⚙️ Cài Đặt</h2>
+      <div class="flex items-end gap-3 flex-wrap">
+        <div class="flex-1" style="min-width:180px">
+          <label class="label">Số vé (top N đăng ký sớm nhất)</label>
+          <input id="ticket-count" type="number" min="1" max="500" value="20" class="input-field">
+        </div>
+        <button onclick="saveSettings()" class="btn-primary" style="width:auto;padding:10px 24px">💾 Lưu</button>
+      </div>
+      <p class="text-xs text-gray-400 mt-2">N thành viên đăng ký sớm nhất sẽ được vào danh sách quay số.</p>
+    </div>
+
+    <!-- Draw + Winner -->
+    <div class="card p-6 mb-5 text-center">
+      <h2 class="font-black text-ocean-dark mb-4">🎲 Quay Số</h2>
+      <button id="draw-btn" onclick="drawWinner()"
+        class="btn-primary mb-5 text-lg font-black"
+        style="width:auto;padding:14px 36px;background:linear-gradient(135deg,#D97706,#F59E0B,#FBBF24);border:none;box-shadow:0 4px 20px rgba(217,119,6,0.4);color:#1A1A1A">
+        🎲 Quay Số Ngẫu Nhiên
+      </button>
+
+      <div id="winner-wrap" class="hidden rounded-2xl p-6"
+        style="background:linear-gradient(135deg,#03045E,#0077B6);border:2px solid #F59E0B">
+        <div class="text-5xl mb-3">🏆</div>
+        <p class="text-foam-blue font-bold text-sm mb-1 tracking-wide uppercase">Người Trúng Thưởng</p>
+        <h3 id="win-name" class="text-white font-black text-2xl mb-1"></h3>
+        <p id="win-code" class="text-sky-blue font-black text-xl tracking-widest mb-2 font-mono"></p>
+        <p id="win-sat"  class="text-foam-blue text-sm mb-2"></p>
+        <p id="win-time" class="text-foam-blue/60 text-xs"></p>
+        <button onclick="clearWinner()" class="mt-4 text-xs text-sky-blue/50 hover:text-sky-blue transition-colors">↩ Xoá kết quả</button>
+      </div>
+      <p id="no-winner-msg" class="text-gray-400 text-sm hidden">Chưa có kết quả quay số.</p>
+    </div>
+
+    <!-- Ticket holders -->
+    <div class="card p-5">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="font-black text-ocean-dark">🎟️ Danh Sách Vé</h2>
+        <span id="ticket-badge" class="bg-sky-blue text-ocean-dark font-black px-3 py-1 rounded-full text-sm">—</span>
+      </div>
+      <div id="loading-tickets" class="text-center py-8">
+        <div class="spinner mx-auto"></div>
+        <p class="text-sm text-gray-400 mt-3">Đang tải...</p>
+      </div>
+      <div id="ticket-list" class="hidden divide-y divide-gray-100"></div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { auth, db } from '../js/firebase-config.js';
+    import { onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+    import { doc, getDoc, getDocs, setDoc, collection }
+      from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+
+    const SAT_LABELS = {spotlight:'⭐ Spotlight',flow:'🌊 Flow',care:'💙 Care',creative:'🎨 Creative',calm:'🧘 Calm'};
+
+    let allSortedMembers = [];
+    let ticketCount      = 20;
+    let ticketHolders    = [];
+
+    onAuthStateChanged(auth, u => { if (!u) window.location.href = 'index.html'; else load(); });
+
+    async function load() {
+      const [cfgSnap, membersSnap] = await Promise.all([
+        getDoc(doc(db,'config','settings')),
+        getDocs(collection(db,'members'))
+      ]);
+
+      ticketCount = cfgSnap.exists() ? (cfgSnap.data().luckyDrawTicketCount || 20) : 20;
+      document.getElementById('ticket-count').value = ticketCount;
+
+      allSortedMembers = membersSnap.docs
+        .map(d => ({id:d.id,...d.data()}))
+        .sort((a,b) => (a.createdAt?.seconds||0) - (b.createdAt?.seconds||0));
+
+      renderTicketList();
+
+      const winSnap = await getDoc(doc(db,'config','luckyDraw'));
+      if (winSnap.exists() && winSnap.data().winnerId) {
+        showWinner(winSnap.data());
+      } else {
+        document.getElementById('no-winner-msg').classList.remove('hidden');
+      }
+    }
+
+    function renderTicketList() {
+      ticketHolders = allSortedMembers.slice(0, ticketCount);
+      document.getElementById('ticket-badge').textContent = `${ticketHolders.length} vé`;
+      document.getElementById('ticket-list').innerHTML = ticketHolders.map((m,i) => `
+        <div class="flex items-center gap-3 py-2.5">
+          <span class="w-8 h-8 flex items-center justify-center rounded-full font-black text-sm flex-shrink-0
+            ${i<3?'bg-amber-100 text-amber-700':'bg-gray-100 text-gray-500'}">${i+1}</span>
+          <div class="flex-1 min-w-0">
+            <p class="font-bold text-ocean-dark text-sm truncate">${m.name}</p>
+            <p class="text-xs text-gray-400">${m.accessCode} · ${SAT_LABELS[m.satType]||m.satType||'—'} · ${m.status||'—'}</p>
+          </div>
+          <span class="text-xs text-gray-300 flex-shrink-0">${fmtTime(m.createdAt)}</span>
+        </div>`).join('');
+      document.getElementById('loading-tickets').classList.add('hidden');
+      document.getElementById('ticket-list').classList.remove('hidden');
+    }
+
+    function fmtTime(ts) {
+      if (!ts?.seconds) return '—';
+      const d = new Date(ts.seconds * 1000);
+      return d.toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'});
+    }
+
+    function showWinner(data) {
+      document.getElementById('win-name').textContent = data.winnerName || '—';
+      document.getElementById('win-code').textContent = data.winnerCode || '';
+      document.getElementById('win-sat').textContent  = SAT_LABELS[data.winnerSat] || data.winnerSat || '';
+      document.getElementById('win-time').textContent = data.drawnAt
+        ? 'Quay lúc: ' + new Date(data.drawnAt).toLocaleString('vi-VN') : '';
+      document.getElementById('winner-wrap').classList.remove('hidden');
+      document.getElementById('no-winner-msg').classList.add('hidden');
+    }
+
+    window.saveSettings = async function() {
+      const n = parseInt(document.getElementById('ticket-count').value, 10);
+      if (!n || n < 1) { showToast('Số vé không hợp lệ!','error'); return; }
+      const btn = document.querySelector('[onclick="saveSettings()"]');
+      btn.disabled = true; btn.textContent = '⏳ Đang lưu...';
+      try {
+        await setDoc(doc(db,'config','settings'), { luckyDrawTicketCount: n }, { merge:true });
+        ticketCount = n;
+        renderTicketList();
+        showToast('Đã lưu! Danh sách vé đã cập nhật.','success');
+      } catch(e) { showToast('Lỗi: '+e.message,'error'); }
+      btn.disabled = false; btn.textContent = '💾 Lưu';
+    };
+
+    window.drawWinner = async function() {
+      if (!ticketHolders.length) { showToast('Chưa có vé nào!','error'); return; }
+      const btn = document.getElementById('draw-btn');
+      btn.disabled = true; btn.textContent = '⏳ Đang quay...';
+
+      document.getElementById('winner-wrap').classList.remove('hidden');
+      document.getElementById('no-winner-msg').classList.add('hidden');
+
+      // Animated flash that gradually slows down
+      let delay = 80;
+      let drawing = true;
+      const tick = () => {
+        if (!drawing) return;
+        const r = ticketHolders[Math.floor(Math.random()*ticketHolders.length)];
+        document.getElementById('win-name').textContent = r.name;
+        document.getElementById('win-code').textContent = r.accessCode;
+        document.getElementById('win-sat').textContent  = '';
+        delay = Math.min(delay * 1.08, 480);
+        setTimeout(tick, delay);
+      };
+      tick();
+
+      await new Promise(r => setTimeout(r, 3000));
+      drawing = false;
+
+      const winner = ticketHolders[Math.floor(Math.random()*ticketHolders.length)];
+      const result = {
+        winnerId:   winner.id,
+        winnerName: winner.name,
+        winnerCode: winner.accessCode,
+        winnerSat:  winner.satType || '',
+        drawnAt:    new Date().toISOString()
+      };
+      try {
+        await setDoc(doc(db,'config','luckyDraw'), result);
+        showWinner(result);
+        showToast(`🏆 ${winner.name} trúng thưởng!`, 'success');
+      } catch(e) { showToast('Lỗi lưu kết quả: '+e.message,'error'); }
+      btn.disabled = false; btn.textContent = '🎲 Quay Số Ngẫu Nhiên';
+    };
+
+    window.clearWinner = async function() {
+      if (!confirm('Xóa kết quả quay số hiện tại?')) return;
+      try {
+        await setDoc(doc(db,'config','luckyDraw'),
+          {winnerId:null,winnerName:null,winnerCode:null,winnerSat:null,drawnAt:null});
+        document.getElementById('winner-wrap').classList.add('hidden');
+        document.getElementById('no-winner-msg').classList.remove('hidden');
+        showToast('Đã xóa kết quả.','info');
+      } catch(e) { showToast('Lỗi: '+e.message,'error'); }
+    };
+
+    window.doSignOut = async function() { await signOut(auth); window.location.href = 'index.html'; };
+
+    function showToast(msg,type='info'){
+      const c=document.getElementById('toast-container');
+      const t=document.createElement('div');t.className=`toast toast-${type}`;t.textContent=msg;
+      c.appendChild(t);setTimeout(()=>t.classList.add('show'),10);
+      setTimeout(()=>{t.classList.remove('show');setTimeout(()=>t.remove(),300);},3500);
+    }
+  </script>
+</body>
+</html>

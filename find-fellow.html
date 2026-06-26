@@ -479,6 +479,21 @@
     </div>
   </div>
 
+  <!-- ════════ SQUAD FINDER MODAL ════════ -->
+  <div id="squad-finder-modal" class="modal-overlay hidden"
+    onclick="if(event.target===this)this.classList.add('hidden')">
+    <div class="modal-sheet">
+      <div class="text-center mb-4">
+        <div class="text-4xl mb-2">🔭</div>
+        <h3 class="font-black text-ocean-dark text-lg">🎉 Milestone <span id="squad-ms-num">3</span> Tiles!</h3>
+        <p class="text-sm text-gray-500 mt-1">Gợi ý — tìm người này nhé!</p>
+      </div>
+      <div id="squad-card" class="bg-mist-blue rounded-2xl p-4 mb-4" style="min-height:80px"></div>
+      <button onclick="document.getElementById('squad-finder-modal').classList.add('hidden')"
+        class="btn-primary">Đi tìm ngay! 🎯</button>
+    </div>
+  </div>
+
   <nav class="bottom-nav">
     <a href="dashboard.html"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l9-9 9 9M5 10v9a1 1 0 001 1h4v-5h4v5h4a1 1 0 001-1v-9"/></svg>Home</a>
     <a href="badges.html"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"/></svg>Badges</a>
@@ -506,7 +521,7 @@
     import { playBubblePop, showBadgeUnlock, isMuted, toggleMute, syncMuteBtn } from './js/sfx.js';
     import {
       doc, getDoc, getDocs, collection, query, where, addDoc,
-      updateDoc, setDoc, serverTimestamp, runTransaction, arrayUnion, onSnapshot
+      updateDoc, setDoc, serverTimestamp, runTransaction, arrayUnion, onSnapshot, increment
     } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
     const session = requireAuth();
@@ -522,6 +537,7 @@
     let fellowRequired = 6;
     let maxPerTarget   = 2;
     let tileHelperIds  = {}; // { [originalTileIdx]: memberId }
+    let squadTipShown  = {};
 
     // ── Per-member deterministic shuffle ─────────────────────────────────────
     // Converts member ID string to a stable 32-bit seed
@@ -676,6 +692,44 @@
       }
     };
 
+    // ── #6 Squad Finder milestone popup ─────────────────────────────────────
+    async function showSquadFinder(milestone) {
+      try {
+        squadTipShown[milestone] = true;
+        await updateDoc(doc(db,'members',session.memberId), { [`squadTipShown.${milestone}`]: true });
+
+        const usedIds = new Set([session.memberId, ...Object.values(tileHelperIds)]);
+        const allSnap = await getDocs(collection(db,'members'));
+        const eligible = allSnap.docs
+          .filter(d => !usedIds.has(d.id) && d.data().surveyCompleted)
+          .sort((a,b) => (a.data().squadSuggestions||0) - (b.data().squadSuggestions||0));
+
+        if (!eligible.length) return;
+        const picked = eligible[0];
+        await updateDoc(doc(db,'members',picked.id), { squadSuggestions: increment(1) });
+
+        const m = picked.data();
+        const SAT_LABELS = {spotlight:'⭐ Spotlight',flow:'🌊 Flow',care:'💙 Care',creative:'🎨 Creative',calm:'🧘 Calm'};
+        const initials = m.name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+
+        document.getElementById('squad-ms-num').textContent = milestone;
+        document.getElementById('squad-card').innerHTML = `
+          <div class="flex items-center gap-3 mb-2">
+            <div class="w-14 h-14 rounded-full bg-sky-blue flex items-center justify-center font-black text-ocean-dark text-lg flex-shrink-0 overflow-hidden">
+              ${m.photoURL ? `<img src="${m.photoURL}" class="w-full h-full object-cover">` : initials}
+            </div>
+            <div>
+              <p class="font-black text-ocean-dark">${m.name}</p>
+              <span class="chip chip-sat text-xs">${SAT_LABELS[m.satType]||m.satType||'SAT'}</span>
+            </div>
+          </div>
+          ${m.bio ? `<p class="text-sm text-ocean-dark/80 italic mt-2">"${m.bio}"</p>` : ''}
+          ${m.school ? `<p class="text-xs text-gray-400 mt-2">🏫 ${m.school}</p>` : ''}`;
+
+        document.getElementById('squad-finder-modal').classList.remove('hidden');
+      } catch {}
+    }
+
     // ── Load ─────────────────────────────────────────────────────────────────
     async function load() {
       const [mSnap, sSnap, cfgSnap] = await Promise.all([
@@ -692,6 +746,7 @@
 
       // Build tileHelperIds — prefer saved field, fill gaps from fellowScans subcollection
       tileHelperIds = { ...(member.tileHelperIds || {}) };
+      squadTipShown = member.squadTipShown || {};
       try {
         const scansSnap = await getDocs(collection(db, 'members', session.memberId, 'fellowScans'));
         scansSnap.docs.forEach(d => {
@@ -911,6 +966,10 @@
         checkDuoSpark(target.id);
         // Check Social Butterfly
         if (newUnlocked.length >= 6) checkSocialButterfly();
+        // Squad finder milestone popup
+        if ([3,7,10].includes(newUnlocked.length) && !squadTipShown[newUnlocked.length]) {
+          setTimeout(() => showSquadFinder(newUnlocked.length), 1800);
+        }
 
       } catch { showVerifyResult('⚠️','Lỗi kết nối','Thử lại nhé!','error'); }
     }
