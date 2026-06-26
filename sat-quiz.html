@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="vi">
 <head>
   <meta charset="UTF-8">
@@ -7,7 +7,9 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
-  <script>tailwind.config={theme:{extend:{colors:{'ocean-deep':'#03045E','ocean-dark':'#023E8A','ocean-mid':'#0077B6','ocean-teal':'#0096C7','sky-blue':'#00B4D8','foam-blue':'#ADE8F4','mist-blue':'#CAF0F8','coral-red':'#D62828'},fontFamily:{nunito:['Nunito','sans-serif']}}}}}</script>
+  <script>tailwind.config={theme:{extend:{colors:{'ocean-deep':'#03045E','ocean-dark':'#023E8A','ocean-mid':'#0077B6','ocean-teal':'#0096C7','sky-blue':'#00B4D8','foam-blue':'#ADE8F4','mist-blue':'#CAF0F8','coral-red':'#D62828'},fontFamily:{nunito:['Nunito','sans-serif']}}}}</script>
+
+
   <style>
     .quiz-option { transition: transform 0.08s, box-shadow 0.08s; }
     .quiz-option:active { transform: scale(0.97); }
@@ -149,7 +151,7 @@
     import { requireAuth } from './js/auth.js';
     import { db } from './js/firebase-config.js';
     import {
-      doc, getDoc, getDocs, collection, query, where, orderBy,
+      doc, getDoc, getDocs, collection, query, where,
       updateDoc, setDoc, serverTimestamp, writeBatch
     } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
@@ -172,7 +174,7 @@
       const [badgeSnap, settingsSnap, qSnap] = await Promise.all([
         getDoc(doc(db, 'members', session.memberId, 'badges', 'B03')),
         getDoc(doc(db, 'config', 'settings')),
-        getDocs(query(collection(db, 'quizQuestions'), where('active', '==', true), orderBy('order')))
+        getDocs(query(collection(db, 'quizQuestions'), where('active', '==', true)))
       ]);
       document.getElementById('loading').classList.add('hidden');
 
@@ -201,7 +203,7 @@
         }
         data.correctIndexes = data.correctIndexes || [0];
         return { id: d.id, ...data };
-      });
+      }).sort((a, b) => (a.order || 0) - (b.order || 0));
 
       if (!questions.length) {
         document.getElementById('quiz-intro').innerHTML =
