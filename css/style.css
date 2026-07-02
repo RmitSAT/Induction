@@ -1,6 +1,11 @@
 /* ── Google Font loaded via HTML <link> ── */
 * { box-sizing: border-box; }
 
+/* Force light rendering for native form controls (select/option popups, etc.)
+   so their text isn't swapped to invisible light-on-light when the OS/browser
+   is in dark mode — this app has no dark theme of its own. */
+html { color-scheme: light; }
+
 body {
   font-family: 'Nunito', sans-serif;
   background-color: #CAF0F8;
@@ -143,6 +148,7 @@ body {
 }
 .input-field:focus { border-color: #0077B6; box-shadow: 0 0 0 3px rgba(0,119,182,0.15); }
 .input-field::placeholder { color: #90CAF9; }
+.input-field option { color: #03045E; background: #fff; }
 
 .code-input {
   text-align: center;
