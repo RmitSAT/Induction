@@ -54,7 +54,7 @@
       <h1 class="text-white font-black text-xl">SAT Ocean Map Quiz</h1>
       <p class="text-sky-blue text-sm mt-1">Vượt qua bài quiz để nhận huy hiệu</p>
       <div class="mt-2 flex justify-center gap-3 flex-wrap">
-        <div class="inline-block bg-sky-blue text-ocean-dark font-black px-3 py-1 rounded-full text-sm">+20 Points</div>
+        <div class="inline-block bg-sky-blue text-ocean-dark font-black px-3 py-1 rounded-full text-sm">⚡ Trả lời nhanh = điểm cao</div>
         <div class="inline-block bg-yellow-400 text-ocean-dark font-black px-3 py-1 rounded-full text-sm">⚡ Speed Run: +10 nếu ≤60s</div>
       </div>
     </div>
@@ -82,6 +82,8 @@
         <ul class="text-sm text-gray-600 space-y-2">
           <li>📌 <span id="q-count">5</span> câu hỏi về SAT</li>
           <li>✅ Cần đúng ít nhất <span id="pass-mark">3</span>/<span id="q-count2">5</span> câu để qua</li>
+          <li>⏱️ Mỗi câu có thời gian đếm ngược riêng — trả lời càng nhanh, điểm càng cao!</li>
+          <li>🏆 Sau mỗi câu, bảng xếp hạng trực tiếp sẽ hiện ra để bạn xem thứ hạng hiện tại</li>
           <li>🔄 Có thể làm lại nếu không đạt</li>
           <li>⚡ Hoàn thành trong <strong>60 giây</strong> → +10 bonus "Lightning" points!</li>
           <li>🔥 Trả lời đúng 3 liên tiếp → nhận COMBO bonus!</li>
@@ -115,6 +117,12 @@
         </div>
         <p class="font-black text-ocean-dark text-base mb-5" id="question-text"></p>
         <div class="space-y-3" id="options-container"></div>
+      </div>
+
+      <div id="live-leaderboard-panel" class="hidden card p-5 mb-4">
+        <p class="font-black text-ocean-dark text-sm mb-1">🏆 Đang diễn ra…</p>
+        <p class="text-xs text-gray-400 mb-3">Xếp hạng trực tiếp — mọi người đang ở đâu?</p>
+        <div id="live-lb-list" class="space-y-2"></div>
       </div>
 
       <button id="next-btn" onclick="nextQuestion()" disabled class="btn-primary">Câu tiếp theo &rarr;</button>
@@ -155,7 +163,7 @@
     import { db } from './js/firebase-config.js';
     import {
       doc, getDoc, getDocs, collection, query, where,
-      updateDoc, setDoc, serverTimestamp, writeBatch
+      updateDoc, setDoc, serverTimestamp, writeBatch, onSnapshot
     } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
     import { playBubblePop, playWrong, showBadgeUnlock, isMuted, toggleMute, syncMuteBtn } from './js/sfx.js';
 
@@ -169,12 +177,18 @@
     let passMark      = 3;
     let combo         = 0;
     let quizStartTime = null;
-    let timerInterval = null;
     let SPEED_LIMIT   = 60;
 
     let _answered     = false; // single-select: has an answer been chosen
     let _multiPending = false; // multi-select: waiting for confirm (first next-btn click = grade)
     let _multiSelected = new Set();
+
+    // ── Per-question timing + live scoring ──────────────────────────────────────
+    let qStartTime           = null;
+    let questionTimerInterval = null;
+    let quizLiveState        = { correctCount: 0, totalPoints: 0 };
+    let liveMembers          = [];
+    let unsubLiveMembers     = null;
 
     async function load() {
       const [badgeSnap, settingsSnap, qSnap] = await Promise.all([
@@ -227,28 +241,38 @@
 
     window.startQuiz = function() {
       currentQ = 0; score = 0; combo = 0;
+      quizLiveState = { correctCount: 0, totalPoints: 0 };
       document.getElementById('quiz-intro').classList.add('hidden');
       document.getElementById('quiz-playing').classList.remove('hidden');
       document.getElementById('timer-display').classList.remove('hidden');
       quizStartTime = Date.now();
-      startTimer();
+      startLiveMembersListener();
+      updateDoc(doc(db, 'members', session.memberId), {
+        'quizLive.active':          true,
+        'quizLive.currentQuestion': 0,
+        'quizLive.totalQuestions':  questions.length,
+        'quizLive.correctCount':    0,
+        'quizLive.totalPoints':     0,
+        'quizLive.startedAt':       serverTimestamp(),
+        'quizLive.updatedAt':       serverTimestamp()
+      }).catch(() => {});
       renderQuestion();
     };
 
-    // ── Timer ──────────────────────────────────────────────────────────────────
-    function startTimer() {
-      let remaining = SPEED_LIMIT;
-      updateTimerUI(remaining);
-      timerInterval = setInterval(() => {
-        remaining--;
-        updateTimerUI(remaining);
-        if (remaining <= 0) clearInterval(timerInterval);
-      }, 1000);
+    // ── Per-question timer ────────────────────────────────────────────────────
+    function startQuestionTimer(limitSec) {
+      qStartTime = Date.now();
+      updateTimerUI(limitSec, limitSec);
+      questionTimerInterval = setInterval(() => {
+        const remaining = Math.max(0, limitSec - Math.floor((Date.now() - qStartTime) / 1000));
+        updateTimerUI(remaining, limitSec);
+        if (remaining <= 0) { stopQuestionTimer(); autoTimeoutAnswer(); }
+      }, 250);
     }
-    function stopTimer()  { clearInterval(timerInterval); timerInterval = null; }
-    function updateTimerUI(sec) {
+    function stopQuestionTimer() { clearInterval(questionTimerInterval); questionTimerInterval = null; }
+    function updateTimerUI(sec, limitSec) {
       document.getElementById('timer-sec').textContent = Math.max(0, sec);
-      const pct = (Math.max(0, sec) / SPEED_LIMIT) * 100;
+      const pct = (Math.max(0, sec) / limitSec) * 100;
       const bar = document.getElementById('timer-bar');
       bar.style.width = pct + '%';
       bar.style.background = pct > 50
@@ -258,6 +282,11 @@
     }
     function getElapsedSeconds() {
       return Math.round((Date.now() - (quizStartTime || Date.now())) / 1000);
+    }
+    function computeQuestionScore(q, elapsedMs) {
+      const limitMs = (q.timeLimit || 20) * 1000;
+      const t = Math.min(elapsedMs, limitMs) / limitMs; // 0..1
+      return Math.round((q.points || 100) * (1 - t * 0.5)); // 100% → 50% of max as time runs out
     }
 
     // ── Question rendering ─────────────────────────────────────────────────────
@@ -271,12 +300,16 @@
       _multiPending  = false;
       _multiSelected = new Set();
 
+      document.getElementById('live-leaderboard-panel').classList.add('hidden');
+      document.getElementById('question-card').classList.remove('hidden');
+
       document.getElementById('q-num').textContent         = currentQ + 1;
       document.getElementById('score-display').textContent = `${score} đúng`;
       document.getElementById('quiz-progress-bar').style.width = `${(currentQ / questions.length) * 100}%`;
       document.getElementById('question-text').textContent = q.question;
       document.getElementById('next-btn').disabled = true;
       updateComboDisplay();
+      startQuestionTimer(q.timeLimit || 20);
 
       document.getElementById('multi-hint').classList.toggle('hidden', !isMulti);
 
@@ -332,6 +365,7 @@
     window.selectOption = function(btn, idx, correctIdxs) {
       if (_answered) return;
       _answered = true;
+      stopQuestionTimer();
       const opts = document.querySelectorAll('.quiz-option');
       opts.forEach((o, i) => {
         o.style.pointerEvents = 'none';
@@ -339,6 +373,8 @@
         else if (i === idx)           o.classList.add('wrong');
       });
       const isCorrect = correctIdxs.includes(idx);
+      const q = questions[currentQ];
+      const earned = isCorrect ? computeQuestionScore(q, Date.now() - qStartTime) : 0;
       if (isCorrect) {
         score++; combo++;
         playBubblePop();
@@ -348,14 +384,18 @@
         playWrong();
         shakeScreen();
       }
+      quizLiveState.correctCount += isCorrect ? 1 : 0;
+      quizLiveState.totalPoints  += earned;
+      recordQuestionResult();
       updateComboDisplay();
-      document.getElementById('next-btn').disabled = false;
       document.getElementById('next-btn').textContent = currentQ < questions.length - 1
         ? 'Câu tiếp theo →' : 'Xem kết quả';
+      scheduleLeaderboardReveal();
     };
 
     // Grade multi-select on first next-btn click
     function gradeMultiSelect() {
+      stopQuestionTimer();
       const q = questions[currentQ];
       const correctIdxs = q.correctIndexes;
       const selected = [..._multiSelected];
@@ -376,6 +416,7 @@
         else if (correctIdxs.includes(i) && !selected.includes(i)) lbl.classList.add('missed');
       });
 
+      const earned = isCorrect ? computeQuestionScore(q, Date.now() - qStartTime) : 0;
       if (isCorrect) {
         score++; combo++;
         playBubblePop();
@@ -385,6 +426,9 @@
         playWrong();
         shakeScreen();
       }
+      quizLiveState.correctCount += isCorrect ? 1 : 0;
+      quizLiveState.totalPoints  += earned;
+      recordQuestionResult();
       updateComboDisplay();
     }
 
@@ -409,6 +453,93 @@
       el.classList.toggle('hidden', combo < 2);
     }
 
+    // Called when the per-question countdown hits 0 with no answer given
+    function autoTimeoutAnswer() {
+      if (_answered) return;
+      _answered = true;
+      const q = questions[currentQ];
+      const isMulti = q.multiSelect || false;
+      if (isMulti) {
+        q.options.forEach((_, i) => {
+          const lbl = document.getElementById(`multi-label-${i}`);
+          const cb  = document.getElementById(`multi-cb-${i}`);
+          if (cb) cb.disabled = true;
+          if (lbl && q.correctIndexes.includes(i)) lbl.classList.add('missed');
+        });
+        _multiPending = false;
+      } else {
+        document.querySelectorAll('.quiz-option').forEach((o, i) => {
+          o.style.pointerEvents = 'none';
+          if (q.correctIndexes.includes(i)) o.classList.add('correct');
+        });
+      }
+      combo = 0;
+      playWrong();
+      shakeScreen();
+      showToast('⏰ Hết giờ!', 'error');
+      recordQuestionResult();
+      updateComboDisplay();
+      document.getElementById('next-btn').textContent = currentQ < questions.length - 1
+        ? 'Câu tiếp theo →' : 'Xem kết quả';
+      scheduleLeaderboardReveal();
+    }
+
+    // ── Live leaderboard ──────────────────────────────────────────────────────
+    function scheduleLeaderboardReveal() {
+      setTimeout(() => {
+        renderLiveLeaderboard();
+        document.getElementById('question-card').classList.add('hidden');
+        document.getElementById('live-leaderboard-panel').classList.remove('hidden');
+        document.getElementById('next-btn').disabled = false;
+      }, 1300);
+    }
+
+    async function recordQuestionResult() {
+      try {
+        await updateDoc(doc(db, 'members', session.memberId), {
+          'quizLive.currentQuestion': currentQ + 1,
+          'quizLive.correctCount':    quizLiveState.correctCount,
+          'quizLive.totalPoints':     quizLiveState.totalPoints,
+          'quizLive.updatedAt':       serverTimestamp()
+        });
+      } catch {}
+    }
+
+    function startLiveMembersListener() {
+      if (unsubLiveMembers) return;
+      unsubLiveMembers = onSnapshot(collection(db, 'members'), snap => {
+        liveMembers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      });
+    }
+
+    function renderLiveLeaderboard() {
+      const active = liveMembers
+        .filter(m => m.quizLive?.active)
+        .sort((a, b) => (b.quizLive?.totalPoints || 0) - (a.quizLive?.totalPoints || 0));
+      const myIdx = active.findIndex(m => m.id === session.memberId);
+      const top  = active.slice(0, 8);
+      const rows = top.map((m, i) => leaderboardRowHTML(m, i + 1, m.id === session.memberId));
+      if (myIdx >= 8) {
+        rows.push('<div class="text-center text-xs text-gray-400 my-1">···</div>');
+        rows.push(leaderboardRowHTML(active[myIdx], myIdx + 1, true));
+      }
+      document.getElementById('live-lb-list').innerHTML = rows.join('') ||
+        '<p class="text-xs text-gray-400 text-center">Chưa có ai khác đang làm quiz…</p>';
+    }
+
+    function leaderboardRowHTML(m, rank, isMe) {
+      return `<div class="flex items-center gap-3 p-2 rounded-xl ${isMe ? 'border-2 border-sky-blue bg-mist-blue' : ''}">
+        <span class="font-black text-gray-400 w-6 text-center text-sm">#${rank}</span>
+        <span class="flex-1 font-bold text-ocean-dark text-sm">${escHtml(m.name)}${isMe ? ' 👈' : ''}</span>
+        <span class="text-xs text-gray-400">Câu ${m.quizLive?.currentQuestion || 0}/${m.quizLive?.totalQuestions || 0}</span>
+        <span class="font-black text-ocean-mid text-sm">${m.quizLive?.totalPoints || 0}</span>
+      </div>`;
+    }
+
+    function escHtml(str) {
+      return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
     // ── Next question / finish ─────────────────────────────────────────────────
     window.nextQuestion = async function() {
       const q = questions[currentQ];
@@ -420,6 +551,8 @@
         _multiPending = false;
         document.getElementById('next-btn').textContent = currentQ < questions.length - 1
           ? 'Câu tiếp theo →' : 'Xem kết quả';
+        document.getElementById('next-btn').disabled = true;
+        scheduleLeaderboardReveal();
         return;
       }
 
@@ -427,7 +560,9 @@
       if (currentQ < questions.length) { renderQuestion(); return; }
 
       // ── Show results ──
-      stopTimer();
+      stopQuestionTimer();
+      unsubLiveMembers?.();
+      unsubLiveMembers = null;
       const elapsed = getElapsedSeconds();
 
       document.getElementById('quiz-playing').classList.add('hidden');
@@ -442,7 +577,7 @@
         ? 'SAT Map Reader Badge đã được mở khoá!'
         : `Cần đúng ít nhất ${passMark} câu.`;
       document.getElementById('result-score').textContent    = `${score}/${questions.length}`;
-      document.getElementById('time-taken').textContent      = `⏱️ ${elapsed} giây`;
+      document.getElementById('time-taken').textContent      = `⏱️ ${elapsed} giây · 🏆 ${quizLiveState.totalPoints} điểm quiz`;
 
       if (isSpeedRun) {
         document.getElementById('speed-result').innerHTML = `
@@ -462,13 +597,15 @@
         const memberSnap = await getDoc(doc(db, 'members', session.memberId));
         const cur = memberSnap.data();
         const updates = {
-          quizAttempts: (cur.quizAttempts || 0) + 1,
-          quizScore:    Math.max(cur.quizScore || 0, score),
+          quizAttempts:         (cur.quizAttempts || 0) + 1,
+          quizScore:            Math.max(cur.quizScore || 0, score),
+          'quizLive.active':    false,
+          'quizLive.updatedAt': serverTimestamp()
         };
 
         if (passed && !cur.quizPassed) {
           updates.quizPassed = true;
-          updates.points = (cur.points || 0) + 20;
+          updates.points = (cur.points || 0) + quizLiveState.totalPoints;
           if (isSpeedRun) {
             updates.points += 10;
             updates['achievements.speedRunner']  = true;
@@ -478,7 +615,7 @@
           batch.update(doc(db, 'members', session.memberId), updates);
           batch.set(
             doc(db, 'members', session.memberId, 'badges', 'B03'),
-            { unlocked: true, unlockedAt: serverTimestamp(), adminOverride: false, points: 20 },
+            { unlocked: true, unlockedAt: serverTimestamp(), adminOverride: false, points: quizLiveState.totalPoints },
             { merge: true }
           );
           await batch.commit();
@@ -501,12 +638,12 @@
 
     async function checkFullExplorer() {
       try {
-        const snaps = await Promise.all(['B01','B02','B03','B04','B05','B06']
+        const snaps = await Promise.all(['B01','B02','B03','B04','B05']
           .map(id => getDoc(doc(db, 'members', session.memberId, 'badges', id))));
         if (snaps.every(s => s.exists() && s.data().unlocked)) {
           const ms = await getDoc(doc(db, 'members', session.memberId));
           await writeBatch(db)
-            .set(doc(db, 'members', session.memberId, 'badges', 'B07'),
+            .set(doc(db, 'members', session.memberId, 'badges', 'B06'),
               { unlocked: true, unlockedAt: serverTimestamp(), adminOverride: false, points: 50 }, { merge: true })
             .update(doc(db, 'members', session.memberId), { points: (ms.data().points || 0) + 50 })
             .commit();

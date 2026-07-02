@@ -322,7 +322,6 @@
           quizPassed: false,
           quizScore: 0,
           quizAttempts: 0,
-          bolParticipated: false,
           bondingCompleted: false,
           fellowProgress: 0,
           unlockedTiles: [],
@@ -332,12 +331,12 @@
           createdAt: serverTimestamp()
         };
 
-        // Batch write: member doc + all 7 badges
+        // Batch write: member doc + all 6 badges
         const batch = writeBatch(db);
         const memberRef = doc(collection(db, 'members'));
         batch.set(memberRef, memberData);
 
-        const badgePoints = { B01:10, B02:10, B03:20, B04:15, B05:30, B06:25, B07:50 };
+        const badgePoints = { B01:10, B02:10, B03:20, B04:30, B05:25, B06:50 };
         for (const [badgeId, pts] of Object.entries(badgePoints)) {
           const badgeRef = doc(db, 'members', memberRef.id, 'badges', badgeId);
           batch.set(badgeRef, {

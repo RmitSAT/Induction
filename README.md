@@ -68,7 +68,7 @@ Log in to the admin panel (`/admin/index.html`) and:
 1. Go to **Questions** page
 2. Click **"Seed Default Statements"** — adds 10 T/F ice-breaker statements
 3. Click **"Seed Default Quiz Questions"** — adds 5 SAT quiz questions
-4. **Edit quiz questions** with accurate SAT content (BOL names, this semester's theme, etc.)
+4. **Edit quiz questions** with accurate SAT content (this semester's theme, etc.)
 5. Go to **Dashboard** → set Archive Pearl form links under **Event Phase Control** → update `config/settings` in Firestore directly or build settings UI
 
 To set the Archive Pearl links, go to Firestore Console → `config/settings` → add fields:
@@ -94,8 +94,7 @@ To set the Archive Pearl links, go to Firestore Console → `config/settings` �
 ├── profile.html            ← Member profile + QR code
 ├── archive-pearl.html      ← B02: Archive Pearl Mission
 ├── sat-quiz.html           ← B03: SAT Ocean Map Quiz
-├── bol-guessing.html       ← B04: Meet Your Sea Captains
-├── find-fellow.html        ← B05: Find Your Fellow Sứa
+├── find-fellow.html        ← B04: Find Your Fellow Sứa
 ├── badges.html             ← Badge collection viewer
 ├── team.html               ← Team display
 ├── leaderboard.html        ← Public leaderboard
@@ -139,7 +138,7 @@ archivePearlDone:  boolean
 quizPassed:        boolean
 quizScore:         number
 quizAttempts:      number
-bolParticipated:   boolean
+quizLive:          map           {active, currentQuestion, totalQuestions, correctCount, totalPoints, startedAt, updatedAt}
 bondingCompleted:  boolean
 fellowProgress:    number        0–10 (tiles unlocked)
 unlockedTiles:     number[]      e.g. [0,2,5]
@@ -149,12 +148,12 @@ points:            number        running total
 createdAt:         timestamp
 ```
 
-### `members/{memberId}/badges/{badgeId}`  (B01–B07)
+### `members/{memberId}/badges/{badgeId}`  (B01–B06)
 ```
 unlocked:       boolean
 unlockedAt:     timestamp | null
 adminOverride:  boolean
-points:         number        (10/10/20/15/30/25/50)
+points:         number        (10/10/20/30/25/50)
 ```
 
 ### `members/{memberId}/fellowScans/{targetMemberId}`
@@ -175,11 +174,17 @@ createdAt:  timestamp
 
 ### `quizQuestions/{qId}`
 ```
-question:     string
-options:      string[]     ["A. ...", "B. ...", "C. ...", "D. ..."]
-correctIndex: number       0–3
-order:        number
-active:       boolean
+question:       string
+mediaType:      "none" | "image" | "video"
+mediaData:      string       base64 image or YouTube/mp4 URL
+options:        string[]     ["A. ...", "B. ...", "C. ...", "D. ..."]
+multiSelect:    boolean
+correctIndexes: number[]     e.g. [0] or [0,2] for multi-answer
+correctIndex:   number       legacy/back-compat mirror = correctIndexes[0]
+points:         number       max points for a correct, instant answer (default 100)
+timeLimit:      number       per-question countdown in seconds (default 20)
+order:          number
+active:         boolean
 ```
 
 ### `trueFalseStatements/{sId}`  (tf_01 … tf_10)
@@ -192,7 +197,7 @@ active:     boolean
 ### `config/settings`
 ```
 eventActive:               boolean
-currentPhase:              string    "registration"|"archive-pearl"|"sat-quiz"|"bol"|"find-fellow"|"team-formation"|"bonding"|"completed"
+currentPhase:              string    "registration"|"archive-pearl"|"sat-quiz"|"find-fellow"|"team-formation"|"bonding"|"completed"
 archivePearlLinkNewbie:    string    Zoho form URL
 archivePearlLinkOldbie:    string    SAT Reflection Survey URL
 quizPassMark:              number    3  (correct answers needed)
@@ -202,15 +207,6 @@ teamSizeMin:               number    6
 teamSizeMax:               number    8
 leaderboardVisible:        boolean
 registrationOpen:          boolean
-```
-
-### `bolMembers/{bId}` (optional — for BOL card display)
-```
-name:     string
-role:     string    "Trưởng BOL", "Phó BOL", etc.
-funFact:  string    Displayed on their intro card
-emoji:    string    e.g. "🎭"
-order:    number
 ```
 
 ### `scanLogs/{autoId}`
@@ -231,10 +227,9 @@ timestamp:  timestamp
 | B01 First Dive | Auto-unlocked on registration completion |
 | B02 Archive Pearl | Member self-confirms form submission |
 | B03 SAT Map Reader | Quiz score ≥ passMark (default 3/5) |
-| B04 BOL Compass | Member self-confirms OR admin mass-unlocks |
-| B05 Friendship Reef | fellowProgress ≥ 6 (auto on tile unlock) |
-| B06 Current Crew | Admin marks team bonding done (admin/teams.html) |
-| B07 Full Explorer | B01–B06 all unlocked (auto-check after each unlock) |
+| B04 Friendship Reef | fellowProgress ≥ 6 (auto on tile unlock) |
+| B05 Current Crew | Admin marks team bonding done (admin/teams.html) |
+| B06 Full Explorer | B01–B05 all unlocked (auto-check after each unlock) |
 
 ---
 
@@ -289,9 +284,8 @@ Font: **Nunito** (Google Fonts) — loaded via `<link>` in each HTML file.
 - [ ] Admin email/password created in Firebase Auth
 - [ ] Firestore rules published (Storage rules not needed — photos stored in Firestore)
 - [ ] T/F statements seeded and reviewed (admin/questions.html)
-- [ ] Quiz questions seeded and edited with real SAT content
+- [ ] Quiz questions seeded and edited with real SAT content (set points/timeLimit per question)
 - [ ] Archive Pearl form links set in Firestore `config/settings`
-- [ ] BOL members added to Firestore `bolMembers` collection
 - [ ] Site deployed to GitHub Pages
 - [ ] Tested on mobile Chrome (Android) and Safari (iOS)
 - [ ] QR code posters printed with site URL

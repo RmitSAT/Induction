@@ -199,7 +199,7 @@
         const batch = writeBatch(db);
         batch.update(doc(db,'teams',teamId), { bondingDone:true });
         for (const mid of memberIds) {
-          const badgeRef = doc(db,'members',mid,'badges','B06');
+          const badgeRef = doc(db,'members',mid,'badges','B05');
           const badgeSnap = await getDoc(badgeRef);
           if (!badgeSnap.exists() || !badgeSnap.data().unlocked) {
             batch.update(badgeRef, { unlocked:true, unlockedAt:serverTimestamp(), adminOverride:false });
@@ -208,7 +208,7 @@
           }
         }
         await batch.commit();
-        showToast('Bonding marked complete! B06 badge unlocked for team!','success');
+        showToast('Bonding marked complete! B05 badge unlocked for team!','success');
         setTimeout(()=>window.location.reload(),1200);
       } catch(err) { showToast('Error: '+err.message,'error'); }
       document.getElementById('page-loader').classList.add('hidden');

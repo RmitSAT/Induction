@@ -976,11 +976,11 @@
 
     async function unlockFriendshipBadge() {
       try {
-        const b = await getDoc(doc(db,'members',session.memberId,'badges','B05'));
+        const b = await getDoc(doc(db,'members',session.memberId,'badges','B04'));
         if (b.exists() && b.data().unlocked) return;
         const ms = await getDoc(doc(db,'members',session.memberId));
         await updateDoc(doc(db,'members',session.memberId), { points:(ms.data().points||0)+30 });
-        await setDoc(doc(db,'members',session.memberId,'badges','B05'),
+        await setDoc(doc(db,'members',session.memberId,'badges','B04'),
           { unlocked:true, unlockedAt:serverTimestamp(), adminOverride:false, points:30 }, { merge:true });
         document.getElementById('badge-banner').classList.remove('hidden');
         showToast('🪸 Friendship Reef Badge mở khoá! +30 điểm!','success');
@@ -991,10 +991,10 @@
 
     async function checkFullExplorer() {
       try {
-        const snaps = await Promise.all(['B01','B02','B03','B04','B05','B06']
+        const snaps = await Promise.all(['B01','B02','B03','B04','B05']
           .map(id => getDoc(doc(db,'members',session.memberId,'badges',id))));
         if (snaps.every(s=>s.exists()&&s.data().unlocked)) {
-          await setDoc(doc(db,'members',session.memberId,'badges','B07'),
+          await setDoc(doc(db,'members',session.memberId,'badges','B06'),
             { unlocked:true, unlockedAt:serverTimestamp(), adminOverride:false, points:50 }, { merge:true });
           const ms = await getDoc(doc(db,'members',session.memberId));
           await updateDoc(doc(db,'members',session.memberId),{points:(ms.data().points||0)+50});

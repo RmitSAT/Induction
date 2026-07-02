@@ -22,12 +22,11 @@
     <!-- Mass unlock section -->
     <div class="card p-5 mb-6">
       <h2 class="font-black text-ocean-dark mb-3">🔓 Mass Badge Unlock</h2>
-      <p class="text-sm text-gray-500 mb-4">Unlock a specific badge for ALL checked-in members at once. Used during live activities (e.g., BOL session).</p>
+      <p class="text-sm text-gray-500 mb-4">Unlock a specific badge for ALL checked-in members at once. Used during live activities.</p>
       <div class="flex flex-wrap gap-3">
         <select id="mass-badge" class="input-field" style="max-width:220px">
           <option value="B02">B02 — Archive Pearl</option>
-          <option value="B04">B04 — BOL Compass</option>
-          <option value="B06">B06 — Current Crew</option>
+          <option value="B05">B05 — Current Crew</option>
         </select>
         <button onclick="massUnlock()" class="btn-primary btn-sm" style="width:auto;display:inline-block">🔓 Unlock for All Checked-In</button>
       </div>
@@ -49,6 +48,16 @@
       </div>
     </div>
 
+    <!-- One-time badge migration -->
+    <div class="card p-5 mb-5 border-2 border-red-200 bg-red-50">
+      <h2 class="font-black text-coral-red mb-2">⚠️ One-Time Migration: Remove BOL &amp; Renumber Badges</h2>
+      <p class="text-sm text-gray-600 mb-4">
+        Removes the retired BOL badge (old B04) — subtracting its points from anyone who had it unlocked —
+        and renumbers B05→B04, B06→B05, B07→B06 for every member. Safe to re-run: already-migrated members are skipped automatically.
+      </p>
+      <button onclick="runBadgeMigration()" class="btn-danger btn-sm" style="width:auto;display:inline-block">🔁 Run Badge Migration (One-Time)</button>
+    </div>
+
     <div id="loading" class="text-center py-6"><div class="spinner mx-auto"></div></div>
   </div>
 
@@ -56,7 +65,7 @@
     import { auth } from '../js/firebase-config.js';
     import { onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
     import { db } from '../js/firebase-config.js';
-    import { collection, getDocs, getDoc, doc, updateDoc, writeBatch, serverTimestamp, query, where } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+    import { collection, getDocs, getDoc, doc, updateDoc, writeBatch, serverTimestamp, query, where, deleteField } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
     onAuthStateChanged(auth, user => { if (!user) window.location.href = 'index.html'; });
     window.doSignOut = async () => { await signOut(auth); window.location.href = 'index.html'; };
@@ -64,9 +73,8 @@
 
     const BADGE_META = {
       B01:{name:'First Dive',pts:10}, B02:{name:'Archive Pearl',pts:10},
-      B03:{name:'SAT Map Reader',pts:20}, B04:{name:'BOL Compass',pts:15},
-      B05:{name:'Friendship Reef',pts:30}, B06:{name:'Current Crew',pts:25},
-      B07:{name:'Full Explorer',pts:50}
+      B03:{name:'SAT Map Reader',pts:20}, B04:{name:'Friendship Reef',pts:30},
+      B05:{name:'Current Crew',pts:25}, B06:{name:'Full Explorer',pts:50}
     };
 
     let foundMemberId = null;
@@ -150,6 +158,72 @@
         await batch.commit();
         showToast(`${badgeId} unlocked for ${checkedIn.length} members!`, 'success');
       } catch(err) { showToast('Error: '+err.message,'error'); }
+      document.getElementById('page-loader').classList.add('hidden');
+    };
+
+    // ── One-time migration: retire old BOL badge (B04), renumber B05→B04, B06→B05, B07→B06 ──
+    window.runBadgeMigration = async function() {
+      const confirmed = confirm(
+        'Run the ONE-TIME BOL removal + badge renumbering migration?\n\n' +
+        '• Old B04 (BOL) points are subtracted from members who had it unlocked, doc removed\n' +
+        '• bolParticipated field cleared\n' +
+        '• B05→B04, B06→B05, B07→B06 (data preserved, old docs removed)\n\n' +
+        'Safe to re-run if interrupted — already-migrated members are skipped automatically.\n\nProceed?'
+      );
+      if (!confirmed) return;
+
+      document.getElementById('page-loader').classList.remove('hidden');
+      try {
+        const allSnap = await getDocs(collection(db, 'members'));
+        const members = allSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+        let batch = writeBatch(db);
+        let ops = 0, migrated = 0, skipped = 0;
+        const BATCH_LIMIT = 490;
+
+        for (const m of members) {
+          const memberRef = doc(db, 'members', m.id);
+          const b04Ref = doc(db, 'members', m.id, 'badges', 'B04'); // old = BOL
+          const b05Ref = doc(db, 'members', m.id, 'badges', 'B05');
+          const b06Ref = doc(db, 'members', m.id, 'badges', 'B06');
+          const b07Ref = doc(db, 'members', m.id, 'badges', 'B07');
+
+          const [b04Snap, b05Snap, b06Snap, b07Snap] = await Promise.all(
+            [b04Ref, b05Ref, b06Ref, b07Ref].map(getDoc)
+          );
+
+          if (!b07Snap.exists()) { skipped++; continue; } // already migrated
+
+          // 1. Undo BOL point award + clear participation flag
+          let pointsDelta = 0;
+          if (b04Snap.exists() && b04Snap.data().unlocked) {
+            pointsDelta -= (b04Snap.data().points || 15);
+          }
+          const memberUpdate = { points: Math.max(0, (m.points || 0) + pointsDelta) };
+          if (m.bolParticipated !== undefined) memberUpdate.bolParticipated = deleteField();
+          batch.update(memberRef, memberUpdate); ops++;
+
+          // 2. Renumber: overwrite each destination from its source, or clear it if no source
+          if (b05Snap.exists()) { batch.set(b04Ref, b05Snap.data()); ops++; }
+          else if (b04Snap.exists()) { batch.delete(b04Ref); ops++; }
+
+          if (b06Snap.exists()) { batch.set(b05Ref, b06Snap.data()); ops++; }
+          else { batch.delete(b05Ref); ops++; }
+
+          batch.set(b06Ref, b07Snap.data()); ops++;
+
+          // 3. Delete old B07 doc — its absence is what makes re-runs skip this member
+          batch.delete(b07Ref); ops++;
+
+          migrated++;
+          if (ops >= BATCH_LIMIT) { await batch.commit(); batch = writeBatch(db); ops = 0; }
+        }
+        if (ops > 0) await batch.commit();
+
+        showToast(`Migration complete: ${migrated} migrated, ${skipped} skipped ✅`, 'success');
+      } catch (e) {
+        showToast('Migration failed: ' + e.message, 'error');
+      }
       document.getElementById('page-loader').classList.add('hidden');
     };
 

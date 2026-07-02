@@ -201,6 +201,12 @@
               onchange="toggleMultiMode('${q.id}')">
             <span class="text-purple-600">⊞ Multi-answer</span>
           </label>
+          <label class="flex items-center gap-1 text-xs font-semibold ml-2" title="Max points awarded for a correct, instant answer">
+            Pts <input type="number" value="${q.points ?? 100}" id="q-pts-${q.id}" class="input-field w-16 text-xs" style="padding:4px 6px">
+          </label>
+          <label class="flex items-center gap-1 text-xs font-semibold ml-2" title="Countdown time limit in seconds">
+            Time(s) <input type="number" value="${q.timeLimit ?? 20}" id="q-time-${q.id}" class="input-field w-16 text-xs" style="padding:4px 6px">
+          </label>
           <button onclick="deleteQuiz('${q.id}')" class="btn-danger btn-sm ml-auto" style="padding:4px 10px">🗑</button>
         </div>
 
@@ -435,7 +441,9 @@
             correctIndexes: correctIdxs,
             correctIndex:   correctIdxs[0] ?? 0,
             active:         document.getElementById(`q-active-${id}`)?.checked ?? true,
-            order:          parseInt(document.getElementById(`q-ord-${id}`)?.value) || 1
+            order:          parseInt(document.getElementById(`q-ord-${id}`)?.value) || 1,
+            points:         parseInt(document.getElementById(`q-pts-${id}`)?.value)  || 100,
+            timeLimit:      parseInt(document.getElementById(`q-time-${id}`)?.value) || 20
           }, { merge: true });
         }));
 
@@ -527,19 +535,20 @@
         correctIndexes: [0],
         correctIndex:   0,
         active:         true,
-        order:          quizDocs.length + 1
+        order:          quizDocs.length + 1,
+        points:         100,
+        timeLimit:      20
       });
       showLoader(false);
       loadQuiz();
     };
 
     window.seedQuizDefaults = async function() {
-      if (!confirm('Add 5 default SAT quiz questions?')) return;
+      if (!confirm('Add 4 default SAT quiz questions?')) return;
       showLoader(true);
       const defaults = [
         { q:'SAT là viết tắt của từ gì?',                    opts:['Student Attachment Team','Student Activity Team','Student Assistance Team','Student Achievement Team'], correct:[0] },
         { q:'Số lượng thành viên lý tưởng cho mỗi team là?', opts:['3-5','6-8','9-12','2-3'],                                                                            correct:[1] },
-        { q:'BOL trong SAT có nghĩa là gì?',                  opts:['Ban Ổn Lòng','Ban Ổn Lương','Ban Ổn Lượng','Ban Ôn Luyện'],                                          correct:[0] },
         { q:'Find Fellow yêu cầu mở khoá bao nhiêu mảnh để nhận huy hiệu?', opts:['4/10','5/10','6/10','8/10'],                                                          correct:[2] },
         { q:'Chủ đề SAT Induction Day 2026B là gì?',         opts:['SAT Rising','Sứa Khám Phá','Ocean Dream','Blue Wave'],                                               correct:[1] },
       ];
@@ -549,12 +558,13 @@
           question: d.q, options: d.opts,
           correctIndexes: d.correct, correctIndex: d.correct[0],
           multiSelect: false, mediaType: 'none', mediaData: '',
-          active: true, order: i + 1
+          active: true, order: i + 1,
+          points: 100, timeLimit: 20
         });
       });
       await batch.commit();
       showLoader(false);
-      showToast('5 default questions added!', 'success');
+      showToast('4 default questions added!', 'success');
       loadQuiz();
     };
 

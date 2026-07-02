@@ -67,7 +67,6 @@
         <option value="registration">Registration / Check-in</option>
         <option value="archive-pearl">Archive Pearl Mission</option>
         <option value="sat-quiz">SAT Ocean Map Quiz</option>
-        <option value="bol">Meet Your Sea Captains (BOL)</option>
         <option value="find-fellow">Find Your Fellow Sứa</option>
         <option value="team-formation">Random Team Formation</option>
         <option value="bonding">Team Bonding Challenge</option>
@@ -110,20 +109,11 @@
       <h2 class="font-black text-ocean-dark mb-4">🎮 Live Events — Push to All Members</h2>
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
 
-        <!-- B07 Global Shoutout -->
+        <!-- B06 Global Shoutout -->
         <div class="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
-          <p class="font-bold text-yellow-800 mb-2">🏆 B07 Full Explorer Shoutout</p>
+          <p class="font-bold text-yellow-800 mb-2">🏆 B06 Full Explorer Shoutout</p>
           <input id="shoutout-name" type="text" class="input-field mb-2" placeholder="Member name..." style="height:36px;font-size:13px">
           <button onclick="fireShoutout()" class="btn-primary btn-sm">📢 Broadcast Shoutout</button>
-        </div>
-
-        <!-- BOL Spotlight -->
-        <div class="bg-purple-50 border border-purple-200 rounded-xl p-4">
-          <p class="font-bold text-purple-800 mb-2">⚓ BOL Spotlight</p>
-          <input id="spot-name" type="text" class="input-field mb-1" placeholder="BOL Name..." style="height:32px;font-size:12px">
-          <input id="spot-role" type="text" class="input-field mb-1" placeholder="Role (e.g. Trưởng BOL)..." style="height:32px;font-size:12px">
-          <input id="spot-fact" type="text" class="input-field mb-2" placeholder="Fun fact..." style="height:32px;font-size:12px">
-          <button onclick="fireBolSpotlight()" class="btn-primary btn-sm">🔦 Spotlight This BOL</button>
         </div>
 
         <!-- Milestone Shockwave -->
@@ -215,8 +205,8 @@
 
     window.doSignOut = async function() { await signOut(auth); window.location.href = 'index.html'; };
 
-    const BADGE_IDS = ['B01','B02','B03','B04','B05','B06','B07'];
-    const BADGE_NAMES = { B01:'First Dive',B02:'Archive Pearl',B03:'SAT Map Reader',B04:'BOL Compass',B05:'Friendship Reef',B06:'Current Crew',B07:'Full Explorer' };
+    const BADGE_IDS = ['B01','B02','B03','B04','B05','B06'];
+    const BADGE_NAMES = { B01:'First Dive',B02:'Archive Pearl',B03:'SAT Map Reader',B04:'Friendship Reef',B05:'Current Crew',B06:'Full Explorer' };
 
     async function load() {
       const [membersSnap, teamsSnap, settingsSnap] = await Promise.all([
@@ -322,20 +312,8 @@
     window.fireShoutout = async function() {
       const name = document.getElementById('shoutout-name').value.trim();
       if (!name) { showToast('Enter member name first','error'); return; }
-      await fireLiveEvent('b07-shoutout', { memberName: name });
+      await fireLiveEvent('b06-shoutout', { memberName: name });
       document.getElementById('shoutout-name').value = '';
-    };
-
-    window.fireBolSpotlight = async function() {
-      const name = document.getElementById('spot-name').value.trim();
-      if (!name) { showToast('Enter BOL name first','error'); return; }
-      await fireLiveEvent('bol-spotlight', {
-        bolName: name,
-        bolRole: document.getElementById('spot-role').value.trim(),
-        bolFact: document.getElementById('spot-fact').value.trim(),
-        bolEmoji: '⚓',
-      });
-      ['spot-name','spot-role','spot-fact'].forEach(id => document.getElementById(id).value='');
     };
 
     window.fireShockwave = async function() {

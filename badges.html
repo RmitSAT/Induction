@@ -11,8 +11,8 @@
   <style>
     .badge-card { transition: transform 0.15s, box-shadow 0.3s; }
     .badge-card:active { transform: scale(0.96); }
-    /* B07 shoutout toast */
-    .b07-toast {
+    /* B06 shoutout toast */
+    .b06-toast {
       background: linear-gradient(135deg, #D97706, #F59E0B);
       color: #03045E; font-weight: 900; padding: 14px 18px;
       border-radius: 14px; box-shadow: 0 4px 20px rgba(245,158,11,0.5);
@@ -23,7 +23,7 @@
 <body class="font-nunito bg-mist-blue">
   <div id="toast-container"></div>
 
-  <!-- B07 Hall of Fame overlay -->
+  <!-- B06 Hall of Fame overlay -->
   <div id="hof-overlay" class="hof-overlay hidden">
     <div id="hof-particles" style="position:absolute;inset:0;pointer-events:none;overflow:hidden"></div>
     <div style="position:relative;z-index:1;text-align:center;padding:24px">
@@ -49,7 +49,7 @@
       <div class="mt-3 flex justify-center gap-6">
         <div>
           <p class="text-2xl font-black text-white" id="badge-count">0</p>
-          <p class="text-xs text-sky-blue">/ 7 Badges</p>
+          <p class="text-xs text-sky-blue">/ 6 Badges</p>
         </div>
         <div class="border-l border-sky-blue"></div>
         <div>
@@ -86,10 +86,9 @@
       { id:'B01', icon:'🤿', name:'First Dive Badge',      viName:'Huy Hiệu Lặn Đầu Tiên', pts:10,  page:'profile.html',       desc:'Check-in và tạo hồ sơ Sứa' },
       { id:'B02', icon:'🐚', name:'Archive Pearl Badge',   viName:'Huy Hiệu Ngọc Trai',    pts:10,  page:'archive-pearl.html', desc:'Hoàn thành form/khảo sát' },
       { id:'B03', icon:'🗺️', name:'SAT Map Reader Badge',  viName:'Huy Hiệu Bản Đồ SAT',   pts:20,  page:'sat-quiz.html',      desc:'Vượt qua bài quiz SAT Ocean Map' },
-      { id:'B04', icon:'⚓', name:'BOL Compass Badge',     viName:'Huy Hiệu La Bàn BOL',   pts:15,  page:'bol-guessing.html',  desc:'Tham gia hoạt động Meet Your Sea Captains' },
-      { id:'B05', icon:'🪸', name:'Friendship Reef Badge', viName:'Huy Hiệu Rạn San Hô',   pts:30,  page:'find-fellow.html',   desc:'Khám phá 6/10 mảnh ghép Sứa' },
-      { id:'B06', icon:'🚢', name:'Current Crew Badge',    viName:'Huy Hiệu Đồng Hành',    pts:25,  page:'team.html',          desc:'Hoàn thành trò chơi team bonding' },
-      { id:'B07', icon:'🏆', name:'Full Explorer Badge',   viName:'Huy Hiệu Nhà Thám Hiểm',pts:50,  page:'dashboard.html',     desc:'Hoàn thành tất cả nhiệm vụ B01–B06' },
+      { id:'B04', icon:'🪸', name:'Friendship Reef Badge', viName:'Huy Hiệu Rạn San Hô',   pts:30,  page:'find-fellow.html',   desc:'Khám phá 6/10 mảnh ghép Sứa' },
+      { id:'B05', icon:'🚢', name:'Current Crew Badge',    viName:'Huy Hiệu Đồng Hành',    pts:25,  page:'team.html',          desc:'Hoàn thành trò chơi team bonding' },
+      { id:'B06', icon:'🏆', name:'Full Explorer Badge',   viName:'Huy Hiệu Nhà Thám Hiểm',pts:50,  page:'dashboard.html',     desc:'Hoàn thành tất cả nhiệm vụ B01–B05' },
     ];
 
     async function load() {
@@ -115,10 +114,10 @@
       grid.innerHTML = BADGE_META.map(m => {
         const b    = badges[m.id] || {};
         const done = b.unlocked;
-        const isB07 = m.id === 'B07';
+        const isB06 = m.id === 'B06';
         const dateStr = b.unlockedAt ? new Date(b.unlockedAt.seconds*1000).toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'}) : '';
         return `
-          <a href="${m.page}" class="badge-card ${done?'unlocked':'locked'} ${isB07&&done?'badge-glow':''} flex items-center gap-4 p-4 no-underline block">
+          <a href="${m.page}" class="badge-card ${done?'unlocked':'locked'} ${isB06&&done?'badge-glow':''} flex items-center gap-4 p-4 no-underline block">
             <div class="text-4xl ${done?'':'opacity-30'} flex-shrink-0">${m.icon}</div>
             <div class="flex-1">
               <p class="font-black text-ocean-dark text-sm">${m.viName}</p>
@@ -137,9 +136,9 @@
       document.getElementById('loading').classList.add('hidden');
       document.getElementById('badges-grid').classList.remove('hidden');
 
-      // B07 Hall of Fame — show once per session if just unlocked
-      const b07 = badges['B07'];
-      if (b07?.unlocked && !sessionStorage.getItem('hof_shown')) {
+      // B06 Hall of Fame — show once per session if just unlocked
+      const b06 = badges['B06'];
+      if (b06?.unlocked && !sessionStorage.getItem('hof_shown')) {
         sessionStorage.setItem('hof_shown','1');
         setTimeout(() => triggerHallOfFame(memberData.name || 'Bạn'), 600);
       }
@@ -194,17 +193,17 @@
       } catch {}
     }
 
-    // B07 global shoutout listener
+    // B06 global shoutout listener
     startLiveEventListener((type, payload) => {
-      if (type === 'b07-shoutout') {
-        showB07Toast(payload.memberName || 'Một Sứa');
+      if (type === 'b06-shoutout') {
+        showB06Toast(payload.memberName || 'Một Sứa');
       }
     });
 
-    function showB07Toast(name) {
+    function showB06Toast(name) {
       const c = document.getElementById('toast-container');
       const t = document.createElement('div');
-      t.className = 'b07-toast';
+      t.className = 'b06-toast';
       t.innerHTML = `🏆 <strong>${name}</strong> vừa trở thành Full Explorer! Chúc mừng! 🎊`;
       c.appendChild(t);
       setTimeout(()=>t.classList.add('show'), 10);
