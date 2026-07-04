@@ -1,33 +1,12 @@
 /**
  * Ocean immersion theme module
- * Adds: floating sea creatures, wave page transitions, ambient underwater audio,
- * caustic depth layer, bubble popping SFX.
+ * Adds: wave page transitions, ambient underwater audio, caustic depth layer,
+ * bubble popping SFX.
  * Import and call initOceanTheme() once per page.
  */
 import { isMuted } from './sfx.js';
+import { getCachedJelly, jellyImagePath } from './jelly.js';
 
-// ── Creature definitions ───────────────────────────────────────────────────
-const CREATURES = [
-  // emoji, movement type, [minSize, maxSize], [minDur, maxDur], spawn weight
-  { e:'🪼', t:'bob',    s:[26,46], d:[10,18], w:3 },
-  { e:'🐠', t:'swim',   s:[18,30], d:[ 7,12], w:4 },
-  { e:'🐟', t:'swim',   s:[15,25], d:[ 6,11], w:4 },
-  { e:'🐡', t:'swim',   s:[16,28], d:[ 7,12], w:2 },
-  { e:'🦑', t:'swim',   s:[14,24], d:[ 7,11], w:2 },
-  { e:'🐙', t:'slow',   s:[18,30], d:[16,26], w:1 },
-  { e:'🦀', t:'slow',   s:[14,22], d:[18,28], w:1 },
-  { e:'⭐', t:'slow',   s:[12,18], d:[14,22], w:2 },
-  { e:'🫧', t:'bubble', s:[14,26], d:[ 2, 5], w:6 },
-  { e:'🐚', t:'slow',   s:[12,18], d:[16,22], w:1 },
-  { e:'🪸', t:'slow',   s:[14,22], d:[20,30], w:1 },
-  { e:'🐬', t:'swim',   s:[22,36], d:[ 6, 9], w:1 },
-  { e:'🌊', t:'bubble', s:[18,30], d:[ 3, 6], w:2 },
-];
-
-// Weighted random pick
-const POOL = CREATURES.flatMap(c => Array(c.w).fill(c));
-
-let _layer = null;      // creature layer div
 let _overlay = null;    // wave transition overlay
 let _ambCtx = null;
 let _ambStarted = false;
@@ -36,10 +15,8 @@ let _navigating = false;
 // ── Public API ─────────────────────────────────────────────────────────────
 export function initOceanTheme() {
   createDepthBg();
-  createCreatureLayer();
   createWaveOverlay();
   interceptLinks();
-  scheduleCreature();
   // Start ambient on first user gesture (browser autoplay policy)
   document.addEventListener('pointerdown', _startAmbient, { once: true });
 }
@@ -53,102 +30,19 @@ function createDepthBg() {
   });
 }
 
-// ── Creature layer ─────────────────────────────────────────────────────────
-function createCreatureLayer() {
-  if (document.getElementById('ocean-creatures')) return;
-  _layer = document.createElement('div');
-  _layer.id = 'ocean-creatures';
-  document.body.appendChild(_layer);
-}
-
-function scheduleCreature() {
-  const delay = 2800 + Math.random() * 5000;
-  setTimeout(() => {
-    if (!document.hidden) spawnCreature();
-    scheduleCreature();
-  }, delay);
-  // Also spawn 2 immediately (staggered) so page feels alive at once
-  setTimeout(spawnCreature, 400);
-  setTimeout(spawnCreature, 1400);
-}
-
-function spawnCreature() {
-  if (!_layer) return;
-  const C   = POOL[Math.floor(Math.random() * POOL.length)];
-  const size = C.s[0] + Math.random() * (C.s[1] - C.s[0]);
-  const dur  = C.d[0] + Math.random() * (C.d[1] - C.d[0]);
-
-  const el = document.createElement('div');
-  el.className = 'oc-creature';
-  el.textContent = C.e;
-  el.style.fontSize = size + 'px';
-
-  const vh = window.innerHeight;
-  const vw = window.innerWidth;
-
-  if (C.t === 'bubble') {
-    // Rise from bottom with a gentle horizontal wobble
-    const bx = ((Math.random() - 0.5) * 70).toFixed(1) + 'px';
-    const xPct = 5 + Math.random() * 90;
-    el.style.cssText += `bottom:0px;left:${xPct}%;--bx:${bx};
-      animation:oc-bubble ${dur}s ease-out forwards;`;
-    _layer.appendChild(el);
-    setTimeout(() => el.remove(), (dur + 0.3) * 1000);
-    return;
-  }
-
-  // Horizontal swimmers and drifters
-  const goRight = Math.random() > 0.45;
-  const startX  = goRight ? -(size + 40) : vw + size + 40;
-  const endX    = goRight ? vw + size + 40 : -(size + 40);
-  // Stay in the middle 60% vertically to avoid header (top ~56px) and nav (bottom ~68px)
-  const safeTop  = 70;
-  const safeBot  = vh - 80;
-  const yPos     = safeTop + Math.random() * (safeBot - safeTop);
-
-  el.style.top  = yPos + 'px';
-  el.style.left = '0px';
-  _layer.appendChild(el);
-
-  const startMs = performance.now();
-  const durMs   = dur * 1000;
-  const isBob   = C.t === 'bob';
-  const isSlow  = C.t === 'slow';
-
-  function tick(now) {
-    const t = Math.min((now - startMs) / durMs, 1);
-    const x = startX + (endX - startX) * t;
-
-    // Bob animation: sine wave Y offset
-    const bobY = isBob
-      ? Math.sin(t * Math.PI * (3 + Math.random() * 0.5)) * 18
-      : isSlow
-        ? Math.sin(t * Math.PI * 2) * 10
-        : Math.sin(t * Math.PI * 5) * 4;
-
-    // Opacity fade in/out
-    let op;
-    if (t < 0.06)       op = t / 0.06;
-    else if (t > 0.94)  op = (1 - t) / 0.06;
-    else                op = 0.82;
-
-    // Mirror for left-going creatures
-    const scaleX = goRight ? 1 : -1;
-    el.style.transform = `translateX(${x}px) translateY(${bobY}px) scaleX(${scaleX})`;
-    el.style.opacity   = op;
-
-    if (t < 1) requestAnimationFrame(tick);
-    else el.remove();
-  }
-  requestAnimationFrame(tick);
-}
-
 // ── Wave page-transition overlay ───────────────────────────────────────────
+function _currentJellyHtml() {
+  const cached = getCachedJelly();
+  return cached
+    ? `<img class="ow-jellyfish" src="${jellyImagePath(cached.species, cached.imgPhase)}" alt="">`
+    : '<div class="ow-jellyfish">🪼</div>';
+}
+
 function createWaveOverlay() {
   if (document.getElementById('ocean-wave-overlay')) return;
   _overlay = document.createElement('div');
   _overlay.id = 'ocean-wave-overlay';
-  _overlay.innerHTML = '<div class="ow-jellyfish">🪼</div>';
+  _overlay.innerHTML = _currentJellyHtml();
   document.body.appendChild(_overlay);
 
   // Arrive animation: start fully covered, then reveal the page
@@ -175,6 +69,10 @@ function interceptLinks() {
     _navigating = true;
     _playTransitionSfx();
     if (_overlay) {
+      // Refresh to the member's current jellyfish stage right before showing —
+      // it may have changed (or just been cached for the first time) since
+      // this page's own initOceanTheme() call created the overlay.
+      _overlay.innerHTML = _currentJellyHtml();
       _overlay.classList.remove('ow-hide');
       void _overlay.offsetWidth;
       _overlay.classList.add('ow-show');

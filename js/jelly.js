@@ -10,6 +10,18 @@ export function jellyImagePath(species, phaseNum) {
   return `assets/${species}.${phaseNum}.png`;
 }
 
+// Cache of the member's current species+phase, read by the page-transition overlay
+// (js/ocean.js) so it can show the real avatar instead of a generic placeholder.
+const CURRENT_CACHE_KEY = 'sat_jelly_current';
+
+export function cacheCurrentJelly(species, imgPhase) {
+  try { localStorage.setItem(CURRENT_CACHE_KEY, JSON.stringify({ species, imgPhase })); } catch {}
+}
+
+export function getCachedJelly() {
+  try { return JSON.parse(localStorage.getItem(CURRENT_CACHE_KEY)); } catch { return null; }
+}
+
 export function computeTotalPoints(member, badges) {
   let total = member?.bonusPoints || 0;
   Object.values(badges || {}).forEach(b => { if (b.unlocked) total += b.points || 0; });

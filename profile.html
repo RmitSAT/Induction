@@ -109,7 +109,7 @@
     import { requireAuth, clearSession, setSession } from './js/auth.js';
     import { db, compressToBase64 } from './js/firebase-config.js';
     import { doc, getDoc, getDocs, updateDoc, collection } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
-    import { jellyImagePath, computeTotalPoints, getJellyPhase, pendingCelebration, showJellyCelebration } from './js/jelly.js';
+    import { jellyImagePath, computeTotalPoints, getJellyPhase, pendingCelebration, showJellyCelebration, cacheCurrentJelly } from './js/jelly.js';
 
     const session = requireAuth();
     let member = null;
@@ -159,6 +159,7 @@
         jellyImg.src = jellyImagePath(member.jellySpecies, imgPhase);
         jellyImg.className = `jelly-avatar jelly-${phase}`;
         jellyImg.style.height = `${Math.round(80 * scale)}px`;
+        cacheCurrentJelly(member.jellySpecies, imgPhase);
         const PHASE_LABEL = { egg: 'Trứng Sứa 🥚', junior: 'Sứa Con 🌱', senior: 'Sứa Trọn Vẹn ✨' };
         document.getElementById('evo-label').textContent = PHASE_LABEL[phase];
         document.getElementById('evo-display').classList.remove('hidden');

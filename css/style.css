@@ -931,6 +931,7 @@ body {
   font-size: 72px; opacity: 0.35;
   animation: owj-pulse 0.6s ease-out;
 }
+img.ow-jellyfish { width: 110px; height: auto; object-fit: contain; }
 @keyframes owj-pulse {
   0%  { opacity: 0; transform: translate(-50%,-50%) scale(0.2); }
   60% { opacity: 0.45; transform: translate(-50%,-50%) scale(1.15); }
@@ -953,22 +954,6 @@ body {
 @keyframes caustic-drift {
   0%   { opacity: 0.6; transform: scale(1)   translateX(0);  }
   100% { opacity: 1;   transform: scale(1.08) translateX(12px); }
-}
-
-/* ── Ocean creatures layer ──────────────────────────────────── */
-#ocean-creatures {
-  position: fixed; inset: 0; pointer-events: none;
-  z-index: 9800; overflow: hidden;
-}
-.oc-creature {
-  position: absolute; line-height: 1; user-select: none;
-  will-change: transform; opacity: 0;
-}
-/* bubble keyframe (uses --bx custom prop set inline) */
-@keyframes oc-bubble {
-  0%   { transform: translate(0, 0);              opacity: 0.75; }
-  60%  { transform: translate(var(--bx,0px), -55vh); opacity: 0.5; }
-  100% { transform: translate(calc(var(--bx,0px)*0.6), -110vh); opacity: 0; }
 }
 
 /* ── Ocean wave footers on page bottoms ─────────────────────── */
