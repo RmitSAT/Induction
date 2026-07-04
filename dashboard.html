@@ -38,7 +38,7 @@
 
     <!-- Hero banner -->
     <div class="bg-ocean-gradient rounded-2xl p-5 mb-5 text-white text-center">
-      <div class="text-4xl mb-1"><span id="evo-emoji" class="evo-stage stage-egg">🥚</span></div>
+      <div class="jelly-avatar-wrap"><img id="jelly-img" class="jelly-avatar" src="" alt=""></div>
       <p id="evo-label" class="text-sky-blue text-xs font-bold mb-1">Trứng Sứa 🥚</p>
       <h1 class="font-black text-xl">Mission Hub</h1>
       <p class="text-sky-blue text-sm mt-1">Sứa Khám Phá 2026B</p>
@@ -72,7 +72,7 @@
   </div>
 
   <!-- ── First-login T/F Survey Modal ─────────────────────────────────── -->
-  <div id="survey-modal" class="hidden fixed inset-0 z-50 flex flex-col" style="background:rgba(3,4,94,0.96)">
+  <div id="survey-modal" class="hidden fixed inset-0 z-[300] flex flex-col" style="background:rgba(3,4,94,0.96)">
     <!-- Header -->
     <div class="bg-ocean-gradient pt-10 pb-5 px-5 text-center flex-shrink-0">
       <div class="text-4xl mb-2">🎯</div>
@@ -88,6 +88,21 @@
         ✅ Hoàn Thành Khảo Sát
       </button>
       <p class="text-center text-xs text-sky-blue/60 mt-2">Bạn cần trả lời tất cả câu hỏi trước khi tiếp tục</p>
+    </div>
+  </div>
+
+  <!-- ── First-login Jellyfish Species Picker Modal ─────────────────────── -->
+  <div id="species-modal" class="hidden fixed inset-0 z-[300] flex flex-col" style="background:rgba(3,4,94,0.96)">
+    <div class="bg-ocean-gradient pt-10 pb-5 px-5 text-center flex-shrink-0">
+      <div class="text-4xl mb-2">🥚</div>
+      <h2 class="text-white font-black text-xl">Choose Your Jellyfish Appearance</h2>
+      <p class="text-sky-blue text-sm mt-1">Chọn quả trứng sứa của bạn — bạn sẽ tiến hoá cùng nó!</p>
+    </div>
+    <div class="flex-1 overflow-y-auto px-4 py-4">
+      <div id="species-grid" class="grid grid-cols-2 gap-3"></div>
+    </div>
+    <div class="flex-shrink-0 px-4 pb-8 pt-3 bg-ocean-deep border-t border-sky-blue/20">
+      <button id="species-confirm-btn" class="btn-primary w-full" disabled>✅ Xác Nhận Lựa Chọn</button>
     </div>
   </div>
 
@@ -115,13 +130,44 @@
     import { requireAuth, clearSession } from './js/auth.js';
     import { db } from './js/firebase-config.js';
     import { doc, getDoc, getDocs, updateDoc, collection, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
-    import { getEvolutionStage, isMuted, toggleMute, syncMuteBtn } from './js/sfx.js';
+    import { isMuted, toggleMute, syncMuteBtn } from './js/sfx.js';
+    import { JELLY_SPECIES, jellyImagePath, computeTotalPoints, getJellyPhase, pendingCelebration, showJellyCelebration } from './js/jelly.js';
 
     const session = requireAuth();
     if (!session) throw new Error('No session');
 
     window.handleMute = function() { toggleMute(); syncMuteBtn('mute-btn'); };
     syncMuteBtn('mute-btn');
+
+    // ── First-login Jellyfish Species Picker ────────────────────────────────────
+    function renderSpeciesGrid() {
+      const grid = document.getElementById('species-grid');
+      grid.innerHTML = JELLY_SPECIES.map(sp => `
+        <div class="jelly-species-card" data-value="${sp}" onclick="selectSpecies(this)">
+          <img src="${jellyImagePath(sp, 1)}" alt="${sp} egg">
+        </div>`).join('');
+    }
+
+    window.selectSpecies = function(el) {
+      document.querySelectorAll('.jelly-species-card').forEach(c => c.classList.remove('selected'));
+      el.classList.add('selected');
+      document.getElementById('species-confirm-btn').disabled = false;
+    };
+
+    function checkAndShowSpecies(member) {
+      if (member.jellySpecies) return Promise.resolve(member.jellySpecies);
+      return new Promise(resolve => {
+        renderSpeciesGrid();
+        document.getElementById('species-modal').classList.remove('hidden');
+        document.getElementById('species-confirm-btn').onclick = async function() {
+          const chosen = document.querySelector('.jelly-species-card.selected')?.dataset.value;
+          if (!chosen) return;
+          await updateDoc(doc(db, 'members', session.memberId), { jellySpecies: chosen, jellySpeciesChosenAt: serverTimestamp() });
+          document.getElementById('species-modal').classList.add('hidden');
+          resolve(chosen);
+        };
+      });
+    }
 
     // ── T/F Survey helpers ────────────────────────────────────────────────────
     let _surveyStatements = [];
@@ -222,6 +268,9 @@
         if (!memberDoc.exists()) { clearSession(); window.location.href = 'index.html'; return; }
         const member = memberDoc.data();
 
+        // First-login jellyfish species choice (blocks until resolved)
+        member.jellySpecies = await checkAndShowSpecies(member);
+
         // Header
         document.getElementById('header-name').textContent = member.name;
         const initials = member.name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
@@ -236,21 +285,29 @@
         const badges = {};
         badgesSnap.forEach(d => { badges[d.id] = d.data(); });
 
-        let totalPoints = 0;
-        let badgeCount  = 0;
-        Object.values(badges).forEach(b => { if (b.unlocked) { totalPoints += b.points; badgeCount++; } });
+        let badgeCount = 0;
+        Object.values(badges).forEach(b => { if (b.unlocked) badgeCount++; });
+        const totalPoints = computeTotalPoints(member, badges);
 
         document.getElementById('total-points').textContent = totalPoints;
         document.getElementById('badge-count').textContent  = badgeCount;
         document.getElementById('fellow-count').textContent = `${member.fellowProgress||0}/10`;
         document.getElementById('header-points').textContent = `${totalPoints} pts`;
 
-        // Profile evolution
-        const evo = getEvolutionStage(totalPoints);
-        const evoEl = document.getElementById('evo-emoji');
-        evoEl.textContent = evo.emoji;
-        evoEl.className   = `evo-stage ${evo.cls}`;
-        document.getElementById('evo-label').textContent = evo.vi;
+        // Jellyfish avatar
+        const { phase, imgPhase, scale } = getJellyPhase(totalPoints, badges);
+        const jellyImg = document.getElementById('jelly-img');
+        jellyImg.src = jellyImagePath(member.jellySpecies, imgPhase);
+        jellyImg.className = `jelly-avatar jelly-${phase}`;
+        jellyImg.style.height = `${Math.round(120 * scale)}px`;
+        const PHASE_LABEL = { egg: 'Trứng Sứa 🥚', junior: 'Sứa Con 🌱', senior: 'Sứa Trọn Vẹn ✨' };
+        document.getElementById('evo-label').textContent = PHASE_LABEL[phase];
+
+        const celeb = pendingCelebration(member, totalPoints, badges);
+        if (celeb) {
+          showJellyCelebration(celeb, member.jellySpecies);
+          await updateDoc(doc(db, 'members', session.memberId), celeb === 'senior' ? { jellySeniorSeen: true } : { jellyHatchSeen: true });
+        }
 
         // Render missions
         const list = document.getElementById('missions-list');

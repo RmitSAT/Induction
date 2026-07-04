@@ -144,9 +144,16 @@ fellowProgress:    number        0–10 (tiles unlocked)
 unlockedTiles:     number[]      e.g. [0,2,5]
 tileHelpers:       map           {0:"Nguyen Van A", 2:"Tran Thi B"}
 trueFalseAnswers:  map           {tf_01: true, tf_02: false, ...}
-points:            number        running total
+points:            number        running total (legacy, not always in sync with badge sums — see note below)
 createdAt:         timestamp
+jellySpecies:         string      e.g. "Jelly1" (one of Jelly1/Jelly2/Jelly5/Jelly6/Jelly7/Jelly8), unset until chosen on first login
+jellySpeciesChosenAt: timestamp
+jellyHatchSeen:       boolean     one-time egg→junior hatch celebration already shown
+jellySeniorSeen:      boolean     one-time senior (all-badges) celebration already shown
+bonusPoints:          number      non-badge bonus only (e.g. Early Diver's +5)
 ```
+
+**Jellyfish evolution points**: the total used to pick the egg/junior/senior avatar phase (`js/jelly.js`) is `sum(unlocked badge.points) + (member.bonusPoints || 0)`, computed fresh on each page load from the `badges` subcollection — this is the authoritative total for evolution purposes and may differ slightly from the legacy `points` field above, which is kept for backward compatibility only.
 
 ### `members/{memberId}/badges/{badgeId}`  (B01–B06)
 ```

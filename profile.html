@@ -42,7 +42,9 @@
           <span class="chip chip-sat" id="display-sat-type"></span>
         </div>
         <div id="evo-display" class="mt-3 hidden">
-          <span id="evo-emoji" class="evo-stage text-4xl"></span>
+          <div class="jelly-avatar-wrap" style="min-height:90px">
+            <img id="jelly-img" class="jelly-avatar" style="height:80px" src="" alt="">
+          </div>
           <p id="evo-label" class="text-sky-blue text-xs font-bold mt-1"></p>
         </div>
       </div>
@@ -106,8 +108,8 @@
   <script type="module">
     import { requireAuth, clearSession, setSession } from './js/auth.js';
     import { db, compressToBase64 } from './js/firebase-config.js';
-    import { doc, getDoc, updateDoc } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
-    import { getEvolutionStage } from './js/sfx.js';
+    import { doc, getDoc, getDocs, updateDoc, collection } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+    import { jellyImagePath, computeTotalPoints, getJellyPhase, pendingCelebration, showJellyCelebration } from './js/jelly.js';
 
     const session = requireAuth();
     let member = null;
@@ -145,13 +147,28 @@
       document.getElementById('edit-school').value = member.school || '';
       document.getElementById('edit-bio').value    = member.bio   || '';
 
-      // Profile evolution
-      const evo = getEvolutionStage(member.points || 0);
-      const evoEmoji = document.getElementById('evo-emoji');
-      evoEmoji.textContent = evo.emoji;
-      evoEmoji.className   = `evo-stage ${evo.cls} text-4xl`;
-      document.getElementById('evo-label').textContent = evo.vi;
-      document.getElementById('evo-display').classList.remove('hidden');
+      // Jellyfish avatar (only once species has been chosen via dashboard.html's first-login picker)
+      if (member.jellySpecies) {
+        const badgesSnap = await getDocs(collection(db, 'members', session.memberId, 'badges'));
+        const badges = {};
+        badgesSnap.forEach(d => { badges[d.id] = d.data(); });
+        const totalPoints = computeTotalPoints(member, badges);
+        const { phase, imgPhase, scale } = getJellyPhase(totalPoints, badges);
+
+        const jellyImg = document.getElementById('jelly-img');
+        jellyImg.src = jellyImagePath(member.jellySpecies, imgPhase);
+        jellyImg.className = `jelly-avatar jelly-${phase}`;
+        jellyImg.style.height = `${Math.round(80 * scale)}px`;
+        const PHASE_LABEL = { egg: 'Trứng Sứa 🥚', junior: 'Sứa Con 🌱', senior: 'Sứa Trọn Vẹn ✨' };
+        document.getElementById('evo-label').textContent = PHASE_LABEL[phase];
+        document.getElementById('evo-display').classList.remove('hidden');
+
+        const celeb = pendingCelebration(member, totalPoints, badges);
+        if (celeb) {
+          showJellyCelebration(celeb, member.jellySpecies);
+          await updateDoc(doc(db, 'members', session.memberId), celeb === 'senior' ? { jellySeniorSeen: true } : { jellyHatchSeen: true });
+        }
+      }
 
       document.getElementById('access-code-display').textContent = member.accessCode;
       new QRCode(document.getElementById('qr-code'), { text: member.accessCode, width:160, height:160, colorDark:'#03045E', colorLight:'#CAF0F8' });
