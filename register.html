@@ -199,7 +199,8 @@
     import { db, compressToBase64 } from './js/firebase-config.js';
     import { setSession } from './js/auth.js';
     import {
-      collection, query, where, getDocs, getDoc, doc, writeBatch, serverTimestamp
+      collection, query, where, getDocs, getDoc, doc, writeBatch, serverTimestamp,
+      getCountFromServer, updateDoc
     } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
     // State
@@ -207,6 +208,15 @@
     let selectedSatType = '';
     let capturedBlob    = null;
     let stream          = null;
+
+    // Races a promise against a timeout so a stalled network call fails
+    // fast with a clear message instead of leaving the UI spinning forever.
+    function withTimeout(promise, ms, label) {
+      return Promise.race([
+        promise,
+        new Promise((_, reject) => setTimeout(() => reject(new Error(`${label} đang mất quá nhiều thời gian. Kiểm tra mạng và thử lại.`)), ms))
+      ]);
+    }
 
     window.selectStatus = function(el) {
       document.querySelectorAll('.status-card').forEach(c => c.classList.remove('selected'));
@@ -287,7 +297,7 @@
       for (let attempt = 0; attempt < 20; attempt++) {
         const code = Array.from({length:6}, () => chars[Math.floor(Math.random()*chars.length)]).join('');
         const q = query(collection(db,'members'), where('accessCode','==',code));
-        const snap = await getDocs(q);
+        const snap = await withTimeout(getDocs(q), 10000, 'Kiểm tra mã');
         if (snap.empty) return code;
       }
       throw new Error('Could not generate unique code');
@@ -346,23 +356,24 @@
             points: pts
           });
         }
-        await batch.commit();
+        await withTimeout(batch.commit(), 15000, 'Tạo hồ sơ');
 
-        // Early Diver check — first N members get bonus points (configurable in admin)
+        // Early Diver check — first N members get bonus points (configurable in admin).
+        // Uses a server-side count aggregation (not a full collection fetch) so this
+        // stays fast and cheap no matter how many members have already registered.
         let isEarlyDiver = false;
         try {
-          const [countSnap, settingsSnap] = await Promise.all([
-            getDocs(collection(db,'members')),
+          const [countSnap, settingsSnap] = await withTimeout(Promise.all([
+            getCountFromServer(collection(db,'members')),
             getDoc(doc(db,'config','settings'))
-          ]);
+          ]), 8000, 'Kiểm tra Early Diver');
           const settings    = settingsSnap.exists() ? settingsSnap.data() : {};
           const EARLY_LIMIT = settings.earlyDiverMaxCount    ?? 20;
           const BONUS_PTS   = settings.earlyDiverBonusPoints ?? 5;
-          const existingCount = countSnap.size; // includes the one we just wrote
+          const existingCount = countSnap.data().count; // includes the one we just wrote
           if (existingCount <= EARLY_LIMIT) {
             isEarlyDiver = true;
-            const { updateDoc: ud } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
-            await ud(doc(db,'members',memberRef.id), { points: 10 + BONUS_PTS, earlyDiver: true, bonusPoints: BONUS_PTS });
+            await updateDoc(doc(db,'members',memberRef.id), { points: 10 + BONUS_PTS, earlyDiver: true, bonusPoints: BONUS_PTS });
           }
         } catch {}
 

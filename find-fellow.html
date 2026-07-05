@@ -106,6 +106,15 @@
       text-shadow: 0 0 6px #000, 0 1px 4px #000; pointer-events: none;
       font-family: 'Nunito', sans-serif;
     }
+    .s-dot-dist {
+      position: absolute; left: 16px; top: 5px;
+      font-size: 8px; font-weight: 700; color: rgba(173,232,244,0.65); white-space: nowrap;
+      text-shadow: 0 0 6px #000; pointer-events: none;
+      font-family: 'Nunito', sans-serif;
+    }
+    /* Position uncertainty exceeds the current zoom range — reading is approximate */
+    .s-dot.approx .s-dot-ring { border-style: dashed; }
+    .s-dot.approx .s-dot-core { opacity: 0.75; }
     .s-dot.waving .s-dot-core { background: #FBBF24; box-shadow: 0 0 12px rgba(251,191,36,0.9); }
     .s-dot.waving .s-dot-ring  { border-color: rgba(251,191,36,0.5); }
     .s-dot.pending .s-dot-core { background: #34D399; box-shadow: 0 0 12px rgba(52,211,153,0.9); }
@@ -307,7 +316,7 @@
           <span id="online-badge" class="sonar-badge" style="display:none"></span>
         </div>
         <div style="display:flex;align-items:center;gap:8px;">
-          <button onclick="cycleRange()" id="range-btn" class="sonar-range-btn">100m</button>
+          <button onclick="cycleRange()" id="range-btn" class="sonar-range-btn">20m</button>
           <button onclick="closeRadar()" class="sonar-close-btn">&times;</button>
         </div>
       </div>
@@ -327,6 +336,9 @@
         <span id="radar-status-text">&gt; Initialising sonar...</span>
       </div>
 
+      <!-- Shown when some active users can't be placed on the dial (no GPS fix yet) -->
+      <div id="radar-nofix-note" class="hidden" style="padding:4px 16px 0;font-size:11px;color:rgba(173,232,244,0.6);font-family:'Nunito',sans-serif"></div>
+
       <!-- Pending code bar (shown when dot tapped without active tile) -->
       <div id="pending-bar" class="sonar-pending" style="display:none;">
         <span id="pending-bar-text" class="sonar-pending-text">🎯 Chọn mảnh để xác nhận...</span>
@@ -338,6 +350,9 @@
       <div class="sonar-tips">
         <span class="sonar-tip">📌 Tap dot → chọn người</span>
         <span class="sonar-tip">Hold 0.6s → vẫy tay 🌊</span>
+      </div>
+      <div class="sonar-tips" style="border-top:none;padding-top:0">
+        <span class="sonar-tip">📍 GPS chỉ mang tính tương đối — luôn xác nhận bằng mã!</span>
       </div>
     </div>
     <!-- ════════════════════════════════ -->
@@ -569,9 +584,27 @@
     let nearbyMembers  = [];
     let pendingCode    = null;
     let pendingName    = null;
-    const RANGES   = [25, 50, 100, 200];
-    let   rangeIdx = 2;
+    const RANGES   = [2, 5, 10, 20, 50, 100];
+    let   rangeIdx = 3;
     const STALE_MS = 90_000;
+    // Throttle location writes so ~100 concurrent users don't hammer Firestore:
+    // only write when enough time has passed AND we've actually moved.
+    const WRITE_MIN_INTERVAL_MS = 8000;
+    const WRITE_MIN_MOVE_M      = 3;
+    let lastWriteAt  = 0;
+    let lastWriteLat = null, lastWriteLng = null;
+    let myAccuracy   = null;
+    // Debounce snapshot-triggered re-renders so a burst of writes from many
+    // users doesn't trigger a re-render per write.
+    let renderDebounceTimer = null;
+    function scheduleRadarRender() {
+      if (renderDebounceTimer) return;
+      renderDebounceTimer = setTimeout(() => {
+        renderDebounceTimer = null;
+        renderRadarDots();
+        updateOnlineBadge();
+      }, 400);
+    }
     // Sweep tracker
     const SWEEP_MS = 3000; // must match CSS animation duration
     let sweepStart = null;
@@ -1034,6 +1067,7 @@
       document.getElementById('radar-panel').classList.remove('hidden');
       radarActive = true;
       setLED(true);
+      document.getElementById('range-btn').textContent = RANGES[rangeIdx] + 'm';
       drawRadarGrid();
       setStatus('> Requesting GPS signal...');
       startSweepTracker();
@@ -1042,25 +1076,30 @@
         gpsWatchId = navigator.geolocation.watchPosition(
           pos => {
             myLat = pos.coords.latitude; myLng = pos.coords.longitude;
+            myAccuracy = pos.coords.accuracy;
             writeMyLocation();
-            setStatus(`> GPS lock ✓  |  Range: ${RANGES[rangeIdx]}m  |  Accuracy: ~${Math.round(pos.coords.accuracy)}m`);
+            const acc = Math.round(pos.coords.accuracy);
+            const quality = acc > 100 ? '⚠️ Yếu (trong nhà?)' : acc > 30 ? '~Trung bình' : 'Tốt';
+            setStatus(`> GPS lock ✓  |  Range: ${RANGES[rangeIdx]}m  |  Độ chính xác: ~${acc}m (${quality})`);
           },
-          () => setStatus('> GPS unavailable — showing active users'),
+          () => setStatus('> GPS unavailable — showing active users (dùng danh sách Gần đây)'),
           { enableHighAccuracy:true, maximumAge:5000, timeout:12000 }
         );
       } else {
         setStatus('> GPS not supported on this device');
       }
 
-      locationsUnsub = onSnapshot(collection(db,'memberLocations'), snap => {
+      // Scope the listener to active users only (smaller payload) and debounce
+      // the re-render so a burst of writes from many concurrent users only
+      // triggers one DOM update instead of one per write.
+      locationsUnsub = onSnapshot(query(collection(db,'memberLocations'), where('active','==',true)), snap => {
         const now = Date.now();
         nearbyMembers = snap.docs
           .filter(d => d.id !== session.memberId)
           .map(d => ({ id:d.id, ...d.data(), age: now-(d.data().updatedAt?.toMillis()||0) }))
           .filter(m => m.active && m.age < STALE_MS);
 
-        renderRadarDots();
-        updateOnlineBadge();
+        scheduleRadarRender();
 
         // Incoming wave check
         const myDoc = snap.docs.find(d => d.id === session.memberId);
@@ -1085,10 +1124,19 @@
 
     async function writeMyLocation() {
       if (!myLat) return;
+      const now = Date.now();
+      // Throttle: skip if we wrote recently AND haven't moved meaningfully.
+      // Keeps Firestore write volume manageable with ~100 concurrent users.
+      if (lastWriteAt && (now - lastWriteAt) < WRITE_MIN_INTERVAL_MS) {
+        const moved = lastWriteLat != null ? haversine(lastWriteLat, lastWriteLng, myLat, myLng) : Infinity;
+        if (moved < WRITE_MIN_MOVE_M) return;
+      }
+      lastWriteAt = now; lastWriteLat = myLat; lastWriteLng = myLng;
       try {
         await setDoc(doc(db,'memberLocations',session.memberId), {
           name: member.name, accessCode: member.accessCode,
-          lat: myLat, lng: myLng, active: true, updatedAt: serverTimestamp()
+          lat: myLat, lng: myLng, accuracy: myAccuracy || null,
+          active: true, updatedAt: serverTimestamp()
         });
       } catch {}
     }
@@ -1228,34 +1276,52 @@
       });
     }
 
+    // Format a distance for display: 1 decimal under 10m (matters at the tight
+    // tiers), whole metres above that.
+    function formatDist(m) { return m < 10 ? m.toFixed(1) : Math.round(m); }
+
     // ── Render dots ──────────────────────────────────────────────────────────
+    // Only members with a real GPS fix on both ends get plotted on the dial —
+    // fabricating an evenly-spaced fake position for everyone else looked like
+    // real proximity data but wasn't, which is why the radar felt unreliable.
+    // Members without a usable fix still show up in the Nearby list instead.
     function renderRadarDots() {
       const layer = document.getElementById('radar-dots');
       layer.innerHTML = '';
-      nearbyMembers.forEach((m, idx) => {
-        const el = document.createElement('div');
-        el.className = 's-dot' + (pendingCode===m.accessCode?' pending':'');
-        el.setAttribute('data-code', m.accessCode);
 
-        let dotBearing = 0;
-        if (myLat && m.lat) {
-          const dist = haversine(myLat,myLng,m.lat,m.lng);
-          const bear = bearing(myLat,myLng,m.lat,m.lng);
-          dotBearing = bear;
-          const frac = Math.min(dist / RANGES[rangeIdx], 0.92);
-          el.style.left = (50 + frac*46*Math.sin(bear*Math.PI/180)) + '%';
-          el.style.top  = (50 - frac*46*Math.cos(bear*Math.PI/180)) + '%';
-        } else {
-          const angle = (idx / Math.max(nearbyMembers.length,1)) * 2*Math.PI;
-          dotBearing = (angle * 180 / Math.PI + 360) % 360;
-          el.style.left = (50 + 38*Math.sin(angle)) + '%';
-          el.style.top  = (50 - 38*Math.cos(angle)) + '%';
-        }
-        el.dataset.bearing = dotBearing;
+      const positioned  = myLat ? nearbyMembers.filter(m => m.lat != null && m.lng != null) : [];
+      const unpositioned = nearbyMembers.length - positioned.length;
+
+      const note = document.getElementById('radar-nofix-note');
+      if (unpositioned > 0) {
+        note.textContent = `+ ${unpositioned} người chưa có tín hiệu GPS — xem tab "Gần đây" để chọn`;
+        note.classList.remove('hidden');
+      } else {
+        note.classList.add('hidden');
+      }
+
+      positioned.forEach(m => {
+        const el = document.createElement('div');
+        const dist = haversine(myLat,myLng,m.lat,m.lng);
+        const bear = bearing(myLat,myLng,m.lat,m.lng);
+        // Combined uncertainty of both GPS fixes — if it exceeds the current
+        // zoom range, the plotted position is little more than a rough guess.
+        const combinedAccuracy = (m.accuracy || 0) + (myAccuracy || 0);
+        const isApprox = combinedAccuracy > RANGES[rangeIdx];
+
+        el.className = 's-dot' + (pendingCode===m.accessCode?' pending':'') + (isApprox?' approx':'');
+        el.setAttribute('data-code', m.accessCode);
+        el.dataset.bearing = bear;
+
+        const frac = Math.min(dist / RANGES[rangeIdx], 0.92);
+        el.style.left = (50 + frac*46*Math.sin(bear*Math.PI/180)) + '%';
+        el.style.top  = (50 - frac*46*Math.cos(bear*Math.PI/180)) + '%';
 
         const firstName = m.name.split(' ').pop();
+        const distLabel = isApprox ? `~${formatDist(dist)}m ±${Math.round(combinedAccuracy)}m` : `~${formatDist(dist)}m`;
         el.innerHTML = `<div class="s-dot-core"><div class="s-dot-ring"></div></div>
-                        <span class="s-dot-name">${firstName}</span>`;
+                        <span class="s-dot-name">${firstName}</span>
+                        <span class="s-dot-dist">${distLabel}</span>`;
 
         // Long-press → wave; tap → select
         let lpTimer = null, lpFired = false;
