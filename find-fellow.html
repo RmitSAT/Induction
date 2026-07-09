@@ -581,6 +581,7 @@
     let myLat = null, myLng = null;
     let gpsWatchId     = null;
     let locationsUnsub = null;
+    let presenceKeepAliveId = null;
     let nearbyMembers  = [];
     let pendingCode    = null;
     let pendingName    = null;
@@ -1069,25 +1070,16 @@
       setLED(true);
       document.getElementById('range-btn').textContent = RANGES[rangeIdx] + 'm';
       drawRadarGrid();
-      setStatus('> Requesting GPS signal...');
       startSweepTracker();
 
-      if ('geolocation' in navigator) {
-        gpsWatchId = navigator.geolocation.watchPosition(
-          pos => {
-            myLat = pos.coords.latitude; myLng = pos.coords.longitude;
-            myAccuracy = pos.coords.accuracy;
-            writeMyLocation();
-            const acc = Math.round(pos.coords.accuracy);
-            const quality = acc > 100 ? '⚠️ Yếu (trong nhà?)' : acc > 30 ? '~Trung bình' : 'Tốt';
-            setStatus(`> GPS lock ✓  |  Range: ${RANGES[rangeIdx]}m  |  Độ chính xác: ~${acc}m (${quality})`);
-          },
-          () => setStatus('> GPS unavailable — showing active users (dùng danh sách Gần đây)'),
-          { enableHighAccuracy:true, maximumAge:5000, timeout:12000 }
-        );
-      } else {
-        setStatus('> GPS not supported on this device');
-      }
+      // Announce presence immediately, independent of GPS. This must not wait
+      // on (or depend on) a successful GPS fix — otherwise two people with
+      // no/weak signal (very common indoors) would each see zero active users
+      // and have no way to find each other at all.
+      announcePresence();
+      presenceKeepAliveId = setInterval(announcePresence, 60000);
+
+      requestGpsLock();
 
       // Scope the listener to active users only (smaller payload) and debounce
       // the re-render so a burst of writes from many concurrent users only
@@ -1096,7 +1088,20 @@
         const now = Date.now();
         nearbyMembers = snap.docs
           .filter(d => d.id !== session.memberId)
-          .map(d => ({ id:d.id, ...d.data(), age: now-(d.data().updatedAt?.toMillis()||0) }))
+          .map(d => {
+            const data = d.data();
+            const locationAge = now - (data.locationAt?.toMillis() || 0);
+            // Coordinates are only trusted while fresh — presence (active/updatedAt)
+            // can now outlive a GPS fix (see announcePresence), so a stale lat/lng
+            // from an earlier fix must not linger and look like a current position.
+            const hasFreshFix = data.locationAt != null && locationAge < STALE_MS;
+            return {
+              id: d.id, ...data,
+              lat: hasFreshFix ? data.lat : null,
+              lng: hasFreshFix ? data.lng : null,
+              age: now-(data.updatedAt?.toMillis()||0)
+            };
+          })
           .filter(m => m.active && m.age < STALE_MS);
 
         scheduleRadarRender();
@@ -1113,13 +1118,63 @@
       });
     }
 
+    // GPS is best-effort and purely for the spatial dial + rough distance —
+    // presence/discoverability (announcePresence) never depends on this
+    // succeeding. Error messages are specific per PositionError code so
+    // "why can't I see anyone" has an actionable answer instead of a generic
+    // failure, especially for iOS Safari where a denied/blocked permission
+    // never shows a prompt again until the user changes it in Settings.
+    function requestGpsLock() {
+      if (!('geolocation' in navigator)) {
+        setStatus('> Thiết bị không hỗ trợ GPS — vẫn thấy người khác qua tab "Gần đây"');
+        return;
+      }
+      if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+        setStatus('> ⚠️ Trang cần chạy qua HTTPS để Safari/iPhone cho phép dùng GPS. Vẫn thấy người khác qua "Gần đây".');
+        return;
+      }
+      setStatus('> Requesting GPS signal...');
+      gpsWatchId = navigator.geolocation.watchPosition(
+        pos => {
+          myLat = pos.coords.latitude; myLng = pos.coords.longitude;
+          myAccuracy = pos.coords.accuracy;
+          writeMyLocation();
+          const acc = Math.round(pos.coords.accuracy);
+          const quality = acc > 100 ? '⚠️ Yếu (trong nhà?)' : acc > 30 ? '~Trung bình' : 'Tốt';
+          setStatus(`> GPS lock ✓  |  Range: ${RANGES[rangeIdx]}m  |  Độ chính xác: ~${acc}m (${quality})`);
+        },
+        err => {
+          const GPS_ERROR_MESSAGES = {
+            1: '> ❌ Quyền vị trí bị từ chối. Trên iPhone: Cài đặt → Safari → Vị trí → Cho phép (hoặc Cài đặt → Riêng tư & Bảo mật → Dịch vụ định vị → bật cho Safari), rồi tải lại trang. Vẫn thấy người khác qua "Gần đây".',
+            2: '> ⚠️ Không bắt được tín hiệu GPS (thường gặp trong nhà). Vẫn thấy người khác qua "Gần đây".',
+            3: '> ⏳ Hết thời gian chờ tín hiệu GPS. Vẫn thấy người khác qua "Gần đây".',
+          };
+          setStatus(GPS_ERROR_MESSAGES[err.code] || '> GPS unavailable — vẫn thấy người khác qua "Gần đây"');
+        },
+        { enableHighAccuracy:true, maximumAge:5000, timeout:12000 }
+      );
+    }
+
     function closeRadar() {
       document.getElementById('radar-panel').classList.add('hidden');
       radarActive = false; setLED(false);
       stopSweepTracker();
-      if (gpsWatchId !== null) { navigator.geolocation.clearWatch(gpsWatchId); gpsWatchId = null; }
-      if (locationsUnsub)      { locationsUnsub(); locationsUnsub = null; }
+      if (gpsWatchId !== null)       { navigator.geolocation.clearWatch(gpsWatchId); gpsWatchId = null; }
+      if (locationsUnsub)            { locationsUnsub(); locationsUnsub = null; }
+      if (presenceKeepAliveId)       { clearInterval(presenceKeepAliveId); presenceKeepAliveId = null; }
       setMyInactive();
+    }
+
+    // Announces "I'm here" regardless of GPS status — presence must not depend
+    // on a successful GPS fix, or two people with no/weak signal (very common
+    // indoors) would each see zero active users and think the radar is broken.
+    async function announcePresence() {
+      try {
+        await setDoc(doc(db,'memberLocations',session.memberId), {
+          name: member.name, accessCode: member.accessCode,
+          active: true, updatedAt: serverTimestamp()
+        }, { merge: true });
+      } catch {}
     }
 
     async function writeMyLocation() {
@@ -1136,7 +1191,7 @@
         await setDoc(doc(db,'memberLocations',session.memberId), {
           name: member.name, accessCode: member.accessCode,
           lat: myLat, lng: myLng, accuracy: myAccuracy || null,
-          active: true, updatedAt: serverTimestamp()
+          active: true, updatedAt: serverTimestamp(), locationAt: serverTimestamp()
         });
       } catch {}
     }
@@ -1293,7 +1348,12 @@
       const unpositioned = nearbyMembers.length - positioned.length;
 
       const note = document.getElementById('radar-nofix-note');
-      if (unpositioned > 0) {
+      if (!myLat && nearbyMembers.length > 0) {
+        // It's OUR OWN GPS that's missing here, not theirs — say so, otherwise
+        // this reads as "the other person has no GPS" which is misleading.
+        note.textContent = `Bạn chưa có tín hiệu GPS — vẫn thấy ${nearbyMembers.length} người qua tab "Gần đây" để chọn`;
+        note.classList.remove('hidden');
+      } else if (unpositioned > 0) {
         note.textContent = `+ ${unpositioned} người chưa có tín hiệu GPS — xem tab "Gần đây" để chọn`;
         note.classList.remove('hidden');
       } else {
@@ -1482,7 +1542,7 @@
     window.addEventListener('beforeunload', () => { if(radarActive) setMyInactive(); });
     document.addEventListener('visibilitychange', () => {
       if (document.hidden && radarActive) setMyInactive();
-      else if (!document.hidden && radarActive) writeMyLocation();
+      else if (!document.hidden && radarActive) { announcePresence(); writeMyLocation(); }
     });
 
     document.getElementById('scan-modal').addEventListener('click',

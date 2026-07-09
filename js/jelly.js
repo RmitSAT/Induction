@@ -1,7 +1,7 @@
 // Egg → Jellyfish avatar evolution: species list, phase/points math, celebration overlay
 import { playWaveCrash } from './sfx.js';
 
-export const JELLY_SPECIES = ['Jelly1', 'Jelly2', 'Jelly5', 'Jelly6', 'Jelly7', 'Jelly8'];
+export const JELLY_SPECIES = ['Jelly1', 'Jelly2', 'Jelly3', 'Jelly5', 'Jelly6', 'Jelly7', 'Jelly8', 'Jelly9', 'Jelly10'];
 export const BADGE_IDS = ['B01', 'B02', 'B03', 'B04', 'B05', 'B06'];
 export const JUNIOR_THRESHOLD = 50;
 export const MAX_POINTS = 145;
