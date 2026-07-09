@@ -76,7 +76,9 @@ function interceptLinks() {
       _overlay.classList.remove('ow-hide');
       void _overlay.offsetWidth;
       _overlay.classList.add('ow-show');
-      setTimeout(() => { window.location.href = href; }, 490);
+      // Held long enough for the transit.mp3 transition sound's 5s-7s segment
+      // (see _playTransitionSfx below) to play out in full before navigating.
+      setTimeout(() => { window.location.href = href; }, 2000);
     } else {
       window.location.href = href;
     }
@@ -84,38 +86,17 @@ function interceptLinks() {
 }
 
 // ── Audio ──────────────────────────────────────────────────────────────────
+// Page-transition whoosh: assets/transit-clip.mp3 is a pre-trimmed 2s cut
+// (0:05-0:07, with a short fade in/out) of the original assets/transit.mp3
+// ocean-wave recording — trimming it ahead of time avoids runtime seeking,
+// which turned out to be unreliable without proper server Range-request
+// support (confirmed while testing against a dev server that lacked it).
 function _playTransitionSfx() {
   if (isMuted()) return;
   try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-
-    // Whoosh — shaped noise
-    const sr  = ctx.sampleRate;
-    const len = Math.floor(sr * 0.55);
-    const buf = ctx.createBuffer(1, len, sr);
-    const d   = buf.getChannelData(0);
-    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1);
-    const src = ctx.createBufferSource(); src.buffer = buf;
-    const bpf = ctx.createBiquadFilter(); bpf.type = 'bandpass';
-    bpf.frequency.setValueAtTime(350, ctx.currentTime);
-    bpf.frequency.linearRampToValueAtTime(180, ctx.currentTime + 0.55);
-    bpf.Q.value = 0.7;
-    const gn = ctx.createGain();
-    src.connect(bpf); bpf.connect(gn); gn.connect(ctx.destination);
-    gn.gain.setValueAtTime(0.001, ctx.currentTime);
-    gn.gain.linearRampToValueAtTime(0.22, ctx.currentTime + 0.1);
-    gn.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.55);
-    src.start();
-
-    // Deep bass thud
-    const osc = ctx.createOscillator(), go = ctx.createGain();
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(95, ctx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(38, ctx.currentTime + 0.5);
-    osc.connect(go); go.connect(ctx.destination);
-    go.gain.setValueAtTime(0.18, ctx.currentTime);
-    go.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.5);
-    osc.start(); osc.stop(ctx.currentTime + 0.52);
+    const audio = new Audio('assets/transit-clip.mp3');
+    audio.volume = 0.7;
+    audio.play().catch(() => {});
   } catch {}
 }
 

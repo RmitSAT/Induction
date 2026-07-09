@@ -1058,7 +1058,13 @@
       startRadar();
     };
     function unlockAudio() {
-      try { const ctx = getAudioCtx(); if (ctx.state === 'suspended') ctx.resume(); } catch {}
+      // Play-then-pause once inside the user gesture so mobile browsers allow
+      // subsequent programmatic (non-gesture) playback of the same asset.
+      try {
+        const a = new Audio('assets/radar.mp3');
+        a.volume = 0;
+        a.play().then(() => a.pause()).catch(() => {});
+      } catch {}
     }
     window.skipRadar = function() {
       document.getElementById('consent-modal').classList.add('hidden');
@@ -1242,33 +1248,15 @@
       if (sweepRaf) { cancelAnimationFrame(sweepRaf); sweepRaf = null; }
     }
 
-    // ── Sonar ping sound (Web Audio API — no file needed) ────────────────────
-    let audioCtx = null;
-    function getAudioCtx() {
-      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      return audioCtx;
-    }
-
+    // ── Sonar ping sound (assets/radar.mp3) ───────────────────────────────────
+    // A fresh Audio instance per call lets overlapping pings (rotation hum +
+    // a dot-hit ping) play independently instead of one cutting the other off.
     function playSonarPing(volume = 0.4) {
+      if (isMuted()) return;
       try {
-        const ctx = getAudioCtx();
-        // Kick from user gesture already happened (tap to open radar)
-        // If still suspended, resume
-        if (ctx.state === 'suspended') ctx.resume();
-
-        const osc  = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.connect(gain); gain.connect(ctx.destination);
-
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(880, ctx.currentTime);           // ping freq
-        osc.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.3); // drops
-
-        gain.gain.setValueAtTime(volume, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.6);  // fade
-
-        osc.start(ctx.currentTime);
-        osc.stop(ctx.currentTime + 0.65);
+        const audio = new Audio('assets/radar.mp3');
+        audio.volume = Math.min(1, Math.max(0, volume));
+        audio.play().catch(() => {});
       } catch {}
     }
 
