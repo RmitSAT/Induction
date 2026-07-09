@@ -106,6 +106,17 @@
     </div>
   </div>
 
+  <!-- ── Team Assignment Popup ──────────────────────────────────────────── -->
+  <div id="team-modal" class="modal-overlay hidden">
+    <div class="modal-sheet text-center">
+      <div class="text-5xl mb-3">🚢</div>
+      <p class="text-gray-500 font-bold text-xs uppercase tracking-wide mb-1">Bạn đã được xếp vào đội</p>
+      <h2 id="team-modal-name" class="text-2xl font-black text-ocean-dark mb-4"></h2>
+      <div id="team-modal-members" class="text-left bg-mist-blue rounded-2xl p-4 mb-5 space-y-2 max-h-56 overflow-y-auto"></div>
+      <button onclick="closeTeamModal()" class="btn-primary">🌊 Tuyệt vời!</button>
+    </div>
+  </div>
+
   <!-- Bottom nav -->
   <nav class="bottom-nav">
     <a href="dashboard.html" class="active">
@@ -182,6 +193,36 @@
       renderSurveyQuestions();
       document.getElementById('survey-modal').classList.remove('hidden');
     }
+
+    // One-time "you've been assigned to Team X" popup — shown once per team
+    // assignment (admin resets teamPopupSeen to false whenever teams are (re)saved).
+    async function checkAndShowTeam(member) {
+      if (!member.teamId || member.teamPopupSeen) return;
+      try {
+        const teamSnap = await getDoc(doc(db, 'teams', member.teamId));
+        if (!teamSnap.exists()) return;
+        const team = teamSnap.data();
+        document.getElementById('team-modal-name').textContent = team.name;
+
+        const otherIds = (team.memberIds || []).filter(id => id !== session.memberId);
+        const membersEl = document.getElementById('team-modal-members');
+        if (otherIds.length) {
+          const snaps = await Promise.all(otherIds.map(id => getDoc(doc(db, 'members', id))));
+          membersEl.innerHTML = snaps.filter(s => s.exists()).map(s => `
+            <div class="flex items-center gap-2">
+              <span>🪼</span><span class="font-semibold text-ocean-dark text-sm">${s.data().name}</span>
+            </div>`).join('') || '<p class="text-sm text-gray-400">Bạn là thành viên đầu tiên của đội!</p>';
+        } else {
+          membersEl.innerHTML = '<p class="text-sm text-gray-400">Bạn là thành viên đầu tiên của đội!</p>';
+        }
+        document.getElementById('team-modal').classList.remove('hidden');
+      } catch {}
+    }
+
+    window.closeTeamModal = async function() {
+      document.getElementById('team-modal').classList.add('hidden');
+      try { await updateDoc(doc(db, 'members', session.memberId), { teamPopupSeen: true }); } catch {}
+    };
 
     function renderSurveyQuestions() {
       const container = document.getElementById('survey-questions');
@@ -338,6 +379,8 @@
 
         // Show T/F survey on first login if not yet completed
         await checkAndShowSurvey(member);
+        // Show "you've been assigned to Team X" popup once per assignment
+        await checkAndShowTeam(member);
       } catch (err) {
         document.getElementById('loading-missions').innerHTML = '<p class="text-coral-red font-bold">Lỗi tải dữ liệu. Thử tải lại trang.</p>';
       }

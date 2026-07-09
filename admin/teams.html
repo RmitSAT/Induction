@@ -8,6 +8,15 @@
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="../css/style.css">
   <script>tailwind.config={theme:{extend:{colors:{'ocean-deep':'#03045E','ocean-dark':'#023E8A','ocean-mid':'#0077B6','ocean-teal':'#0096C7','sky-blue':'#00B4D8','foam-blue':'#ADE8F4','mist-blue':'#CAF0F8','coral-red':'#D62828'},fontFamily:{nunito:['Nunito','sans-serif']}}}}</script>
+  <style>
+    .team-dropzone { transition: background 0.15s, box-shadow 0.15s; }
+    .team-dropzone.drag-over { background: #EFF8FF; box-shadow: 0 0 0 2px #00B4D8 inset; }
+    .member-chip { cursor: grab; transition: opacity 0.15s; }
+    .member-chip:active { cursor: grabbing; }
+    .member-chip.dragging { opacity: 0.35; }
+    .team-name-input { border: none; background: transparent; outline: none; font: inherit; }
+    .team-name-input:focus { background: #F0F9FF; border-radius: 6px; padding: 0 4px; }
+  </style>
 </head>
 <body class="font-nunito bg-gray-50 min-h-screen">
   <div id="toast-container"></div>
@@ -33,6 +42,17 @@
           <input id="team-prefix" type="text" value="Team Sứa" class="input-field" style="max-width:150px">
         </div>
       </div>
+
+      <p class="text-xs text-gray-500 mb-2">Minimum per team — leave blank or 0 to skip a rule:</p>
+      <div class="flex flex-wrap gap-4 mb-3">
+        <div><label class="label">👦 Min Male</label><input id="min-male" type="number" min="0" class="input-field" style="max-width:100px" placeholder="—"></div>
+        <div><label class="label">👧 Min Female</label><input id="min-female" type="number" min="0" class="input-field" style="max-width:100px" placeholder="—"></div>
+        <div><label class="label">🐠 Min Oldbie</label><input id="min-oldbie" type="number" min="0" class="input-field" style="max-width:100px" placeholder="—"></div>
+        <div><label class="label">🐣 Min Newbie</label><input id="min-newbie" type="number" min="0" class="input-field" style="max-width:100px" placeholder="—"></div>
+      </div>
+
+      <div id="rule-warnings" class="hidden text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-3 mb-3"></div>
+
       <div class="flex gap-3 flex-wrap">
         <button onclick="generateTeams()" class="btn-primary btn-sm" style="width:auto;display:inline-block">🔀 Generate Teams</button>
         <button onclick="saveTeams()" id="save-btn" class="btn-primary btn-sm hidden" style="width:auto;display:inline-block;background:#059669">💾 Save Teams</button>
@@ -52,7 +72,7 @@
     <div id="preview-section" class="hidden">
       <div class="flex items-center justify-between mb-3">
         <h2 class="font-black text-ocean-dark">Team Preview (<span id="preview-count">0</span> teams)</h2>
-        <span class="text-sm text-gray-500">Review before saving</span>
+        <span class="text-sm text-gray-500">✋ Drag members between teams · click a team name to rename · review before saving</span>
       </div>
       <div id="preview-grid" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
     </div>
@@ -101,43 +121,106 @@
     window.generateTeams = function() {
       const size   = parseInt(document.getElementById('team-size').value) || 7;
       const prefix = document.getElementById('team-prefix').value.trim() || 'Team Sứa';
+      const minMale   = parseInt(document.getElementById('min-male').value)   || 0;
+      const minFemale = parseInt(document.getElementById('min-female').value) || 0;
+      const minOldbie = parseInt(document.getElementById('min-oldbie').value) || 0;
+      const minNewbie = parseInt(document.getElementById('min-newbie').value) || 0;
+
       const checkedIn = allMembers.filter(m=>m.checkedIn);
       if (checkedIn.length === 0) { showToast('No checked-in members!','error'); return; }
 
-      // Split by status
-      const newbies = shuffle(checkedIn.filter(m=>m.status==='newbie'));
-      const oldbies = shuffle(checkedIn.filter(m=>m.status==='oldbie'));
-      const total   = checkedIn.length;
-      const numTeams = Math.max(1, Math.round(total / size));
+      const numTeams = Math.max(1, Math.round(checkedIn.length / size));
+      const { teams, warnings } = autoArrange(checkedIn, numTeams, prefix,
+        { minMale, minFemale, minOldbie, minNewbie });
 
-      // Init empty teams
-      const teams = Array.from({length:numTeams}, (_,i) => ({
-        name:`${prefix} ${i+1}`, members:[], colorHex:TEAM_COLORS[i%TEAM_COLORS.length]
-      }));
+      const noGenderCount = checkedIn.filter(m=>!m.gender).length;
+      if (noGenderCount > 0) {
+        warnings.push(`${noGenderCount} checked-in member(s) have no gender set — they were placed without regard to the Male/Female rules. Set gender in Admin → Members for accurate arranging.`);
+      }
 
-      // Distribute oldbies first (round-robin)
-      oldbies.forEach((m,i) => teams[i%numTeams].members.push(m));
-      // Then newbies
-      newbies.forEach((m,i) => teams[i%numTeams].members.push(m));
+      const warnEl = document.getElementById('rule-warnings');
+      if (warnings.length) {
+        warnEl.innerHTML = warnings.map(w => `⚠️ ${w}`).join('<br>');
+        warnEl.classList.remove('hidden');
+      } else {
+        warnEl.classList.add('hidden');
+      }
 
       generatedTeams = teams;
       renderPreview();
       document.getElementById('save-btn').classList.remove('hidden');
     };
 
+    // Fills each team up to its minimum for each configured category (skipping
+    // any category left at 0), then balances everyone else evenly by team size.
+    // A person satisfies whichever categories they belong to simultaneously
+    // (e.g. a male newbie assigned to hit the "male" quota also counts toward
+    // that team's "newbie" quota), so later phases only ask for what's still short.
+    function autoArrange(members, numTeams, prefix, constraints) {
+      const teams = Array.from({length:numTeams}, (_,i) => ({
+        name: `${prefix} ${i+1}`, members: [], colorHex: TEAM_COLORS[i%TEAM_COLORS.length]
+      }));
+      const shuffled = shuffle(members);
+      const assignedIds = new Set();
+      const warnings = [];
+
+      const categories = [
+        { key:'male',   label:'Male',   min:constraints.minMale,   test:m=>m.gender==='male' },
+        { key:'female', label:'Female', min:constraints.minFemale, test:m=>m.gender==='female' },
+        { key:'oldbie', label:'Oldbie', min:constraints.minOldbie, test:m=>m.status==='oldbie' },
+        { key:'newbie', label:'Newbie', min:constraints.minNewbie, test:m=>m.status==='newbie' },
+      ].filter(c => c.min > 0);
+
+      for (const cat of categories) {
+        let safety = 0;
+        while (safety++ < members.length * 2) {
+          const needing = teams.filter(t => t.members.filter(cat.test).length < cat.min);
+          if (!needing.length) break;
+          const pool = shuffled.filter(m => !assignedIds.has(m.id) && cat.test(m));
+          if (!pool.length) {
+            warnings.push(`Not enough "${cat.label}" members for every team to reach the minimum of ${cat.min} (${needing.length} team(s) still short).`);
+            break;
+          }
+          needing[0].members.push(pool[0]);
+          assignedIds.add(pool[0].id);
+        }
+      }
+
+      // Everyone else, balanced round-robin onto whichever team is smallest
+      shuffled.filter(m => !assignedIds.has(m.id)).forEach(person => {
+        const team = teams.reduce((a,b) => a.members.length <= b.members.length ? a : b);
+        team.members.push(person);
+        assignedIds.add(person.id);
+      });
+
+      return { teams, warnings };
+    }
+
+    let dragMemberId = null;
+
     function renderPreview() {
       document.getElementById('preview-count').textContent = generatedTeams.length;
       const SAT_ICONS = {spotlight:'⭐',flow:'🌊',care:'💙',creative:'🎨',calm:'🧘'};
       document.getElementById('preview-grid').innerHTML = generatedTeams.map((t,ti) => `
-        <div class="card p-4" style="border-top:4px solid ${t.colorHex}">
-          <div class="flex items-center gap-2 mb-3">
-            <span class="font-black text-ocean-dark">${t.name}</span>
-            <span class="text-xs text-gray-400">${t.members.length} members</span>
+        <div class="card p-4 team-dropzone" style="border-top:4px solid ${t.colorHex}"
+             ondragover="onTeamDragOver(event)" ondragleave="onTeamDragLeave(event)" ondrop="onTeamDrop(event,${ti})">
+          <div class="flex items-center gap-2 mb-2">
+            <input class="team-name-input font-black text-ocean-dark" style="flex:1;min-width:0"
+                   value="${t.name}" oninput="renameTeam(${ti}, this.value)">
+            <span class="text-xs text-gray-400 flex-shrink-0">${t.members.length} members</span>
+          </div>
+          <div class="flex gap-3 text-xs text-gray-400 mb-3">
+            <span>👦 ${t.members.filter(m=>m.gender==='male').length}</span>
+            <span>👧 ${t.members.filter(m=>m.gender==='female').length}</span>
+            <span>🐠 ${t.members.filter(m=>m.status==='oldbie').length}</span>
+            <span>🐣 ${t.members.filter(m=>m.status==='newbie').length}</span>
           </div>
           <div class="space-y-2">
             ${t.members.map(m=>`
-              <div class="flex items-center gap-2 text-sm">
+              <div class="member-chip flex items-center gap-2 text-sm p-1.5 rounded-lg bg-gray-50"
+                   draggable="true" ondragstart="onMemberDragStart(event,'${m.id}')" ondragend="onMemberDragEnd(event)">
                 <span class="chip ${m.status==='newbie'?'chip-newbie':'chip-oldbie'} text-xs">${m.status==='newbie'?'N':'O'}</span>
+                <span>${m.gender==='male'?'👦':m.gender==='female'?'👧':'❓'}</span>
                 <span>${SAT_ICONS[m.satType]||''}</span>
                 <span class="font-semibold text-ocean-dark">${m.name}</span>
               </div>`).join('')}
@@ -146,8 +229,34 @@
       document.getElementById('preview-section').classList.remove('hidden');
     }
 
+    window.renameTeam = function(idx, value) { generatedTeams[idx].name = value; };
+
+    window.onMemberDragStart = function(e, memberId) {
+      dragMemberId = memberId;
+      e.dataTransfer.effectAllowed = 'move';
+      e.target.closest('.member-chip').classList.add('dragging');
+    };
+    window.onMemberDragEnd = function(e) {
+      e.target.closest('.member-chip')?.classList.remove('dragging');
+    };
+    window.onTeamDragOver = function(e) { e.preventDefault(); e.currentTarget.classList.add('drag-over'); };
+    window.onTeamDragLeave = function(e) { e.currentTarget.classList.remove('drag-over'); };
+    window.onTeamDrop = function(e, targetIdx) {
+      e.preventDefault();
+      e.currentTarget.classList.remove('drag-over');
+      if (!dragMemberId) return;
+      let moved = null;
+      generatedTeams.forEach(t => {
+        const idx = t.members.findIndex(m => m.id === dragMemberId);
+        if (idx >= 0) moved = t.members.splice(idx, 1)[0];
+      });
+      if (moved) generatedTeams[targetIdx].members.push(moved);
+      dragMemberId = null;
+      renderPreview();
+    };
+
     window.saveTeams = async function() {
-      if (!confirm(`Save ${generatedTeams.length} teams? This will update all member team assignments.`)) return;
+      if (!confirm(`Save ${generatedTeams.length} teams? This will update all member team assignments and show each member a "you've been assigned" popup on their next visit.`)) return;
       document.getElementById('page-loader').classList.remove('hidden');
       try {
         // Clear old teams
@@ -156,19 +265,20 @@
         oldTeamsSnap.forEach(d => batch1.delete(d.ref));
         await batch1.commit();
 
-        // Create new teams + update member teamId
+        // Create new teams + update member teamId. teamPopupSeen:false makes
+        // dashboard.html show each member a one-time "you're on Team X" modal.
         const batch2 = writeBatch(db);
         for (const t of generatedTeams) {
           const teamRef = doc(collection(db,'teams'));
           const memberIds = t.members.map(m=>m.id);
           batch2.set(teamRef, { name:t.name, memberIds, score:0, bondingDone:false, colorHex:t.colorHex, createdAt:serverTimestamp() });
           for (const m of t.members) {
-            batch2.update(doc(db,'members',m.id), { teamId:teamRef.id });
+            batch2.update(doc(db,'members',m.id), { teamId:teamRef.id, teamPopupSeen:false });
           }
         }
         await batch2.commit();
 
-        showToast(`${generatedTeams.length} teams saved successfully!`,'success');
+        showToast(`${generatedTeams.length} teams saved! Members will see their team on next visit.`,'success');
         document.getElementById('save-btn').classList.add('hidden');
         setTimeout(()=>window.location.reload(),1500);
       } catch(err) { showToast('Error: '+err.message,'error'); }

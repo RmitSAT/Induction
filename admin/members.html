@@ -50,7 +50,7 @@
       <table class="admin-table">
         <thead>
           <tr>
-            <th>#</th><th>Name</th><th>Code</th><th>Status</th><th>SAT Type</th>
+            <th>#</th><th>Name</th><th>Code</th><th>Gender</th><th>Status</th><th>SAT Type</th>
             <th>Checked-in</th><th>Points</th><th>Team</th><th>Actions</th>
           </tr>
         </thead>
@@ -93,6 +93,10 @@
         <div><label class="label">Date of Birth</label><input id="edit-dob" type="date" class="input-field"></div>
         <div><label class="label">Major</label><input id="edit-major" class="input-field"></div>
         <div><label class="label">School</label><input id="edit-school" class="input-field"></div>
+        <div>
+          <label class="label">Gender</label>
+          <select id="edit-gender" class="input-field"><option value="">— Not set —</option><option value="male">Male</option><option value="female">Female</option></select>
+        </div>
         <div>
           <label class="label">Status</label>
           <select id="edit-status" class="input-field"><option value="newbie">Newbie</option><option value="oldbie">Oldbie</option></select>
@@ -158,6 +162,7 @@
             </div>
           </td>
           <td><code class="font-mono font-bold text-ocean-mid">${m.accessCode||'—'}</code></td>
+          <td class="text-sm">${m.gender==='male'?'👦 Male':m.gender==='female'?'👧 Female':'<span class="text-coral-red">— not set</span>'}</td>
           <td><span class="chip ${m.status==='newbie'?'chip-newbie':'chip-oldbie'}">${m.status||'—'}</span></td>
           <td>${SAT_ICONS[m.satType]||''} ${m.satType||'—'}</td>
           <td>${m.checkedIn?'<span class="chip chip-green">✓ Yes</span>':'<span class="chip chip-red">No</span>'}</td>
@@ -182,6 +187,7 @@
       document.getElementById('edit-dob').value    = m.dateOfBirth || '';
       document.getElementById('edit-major').value  = m.major || '';
       document.getElementById('edit-school').value = m.school || '';
+      document.getElementById('edit-gender').value = m.gender || '';
       document.getElementById('edit-status').value = m.status || 'newbie';
       document.getElementById('edit-sat').value    = m.satType || 'spotlight';
       document.getElementById('edit-code').value   = m.accessCode || '';
@@ -199,6 +205,7 @@
           dateOfBirth: document.getElementById('edit-dob').value,
           major:       document.getElementById('edit-major').value.trim(),
           school:      document.getElementById('edit-school').value.trim(),
+          gender:      document.getElementById('edit-gender').value,
           status:      document.getElementById('edit-status').value,
           satType:     document.getElementById('edit-sat').value,
         });

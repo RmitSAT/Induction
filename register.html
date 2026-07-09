@@ -53,7 +53,19 @@
       <input id="major" type="text" class="input-field mb-4" placeholder="VD: Marketing, CNTT...">
 
       <label class="label" for="school">Trường / Khoa</label>
-      <input id="school" type="text" class="input-field mb-6" placeholder="VD: UEF, UIT...">
+      <input id="school" type="text" class="input-field mb-4" placeholder="VD: UEF, UIT...">
+
+      <label class="label mb-2">Giới tính <span class="text-coral-red">*</span></label>
+      <div class="grid grid-cols-2 gap-3 mb-6">
+        <div class="status-card" data-value="male" onclick="selectGender(this)">
+          <div class="text-2xl mb-1">👦</div>
+          <div class="font-bold text-ocean-dark">Nam</div>
+        </div>
+        <div class="status-card" data-value="female" onclick="selectGender(this)">
+          <div class="text-2xl mb-1">👧</div>
+          <div class="font-bold text-ocean-dark">Nữ</div>
+        </div>
+      </div>
 
       <button class="btn-primary" onclick="goStep(2)">Tiếp theo &rarr;</button>
     </div>
@@ -204,6 +216,7 @@
     } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
     // State
+    let selectedGender  = '';
     let selectedStatus  = '';
     let selectedSatType = '';
     let capturedBlob    = null;
@@ -217,6 +230,12 @@
         new Promise((_, reject) => setTimeout(() => reject(new Error(`${label} đang mất quá nhiều thời gian. Kiểm tra mạng và thử lại.`)), ms))
       ]);
     }
+
+    window.selectGender = function(el) {
+      document.querySelectorAll('#step-1 .status-card').forEach(c => c.classList.remove('selected'));
+      el.classList.add('selected');
+      selectedGender = el.dataset.value;
+    };
 
     window.selectStatus = function(el) {
       document.querySelectorAll('.status-card').forEach(c => c.classList.remove('selected'));
@@ -234,6 +253,7 @@
       if (n === 2) {
         const name = document.getElementById('name').value.trim();
         if (!name) { showToast('Vui lòng nhập họ tên!', 'error'); return; }
+        if (!selectedGender) { showToast('Vui lòng chọn giới tính!', 'error'); return; }
       }
       if (n === 3) {
         if (!selectedStatus)  { showToast('Vui lòng chọn Newbie / Oldbie!', 'error'); return; }
@@ -320,6 +340,7 @@
           dateOfBirth: document.getElementById('dob').value || '',
           major: document.getElementById('major').value.trim(),
           school: document.getElementById('school').value.trim(),
+          gender: selectedGender,
           status: selectedStatus,
           satType: selectedSatType,
           photoURL,

@@ -128,12 +128,14 @@ dateOfBirth:       string        "YYYY-MM-DD"
 major:             string
 school:            string
 status:            "newbie" | "oldbie"
+gender:            "male" | "female"    unset for members registered before this field existed — backfill via Admin → Members
 satType:           "spotlight" | "flow" | "care" | "creative" | "calm"
 photoURL:          string        base64 data URL (compressed JPEG, ~80KB, stored in Firestore)
 accessCode:        string        6-char unique (e.g. "X4K9QR")
 checkedIn:         boolean
 checkinTime:       timestamp
 teamId:            string | null
+teamPopupSeen:     boolean       one-time "you've been assigned to Team X" popup already shown; reset to false whenever Admin → Teams saves a new arrangement
 archivePearlDone:  boolean
 quizPassed:        boolean
 quizScore:         number
