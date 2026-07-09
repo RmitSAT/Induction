@@ -108,6 +108,10 @@
             <option value="care">Care</option><option value="creative">Creative</option><option value="calm">Calm</option>
           </select>
         </div>
+        <div>
+          <label class="label">Fun Fact / Bio</label>
+          <textarea id="edit-bio" rows="3" maxlength="200" class="input-field resize-none" style="height:auto"></textarea>
+        </div>
         <div><label class="label">Access Code (read-only)</label><input id="edit-code" class="input-field bg-gray-100" readonly></div>
         <div class="flex gap-2">
           <button onclick="saveMember()" class="btn-primary">💾 Save</button>
@@ -150,6 +154,7 @@
       );
       document.getElementById('member-count').textContent = `${filtered.length} members`;
       const SAT_ICONS = {spotlight:'⭐',flow:'🌊',care:'💙',creative:'🎨',calm:'🧘'};
+      const esc = s => (s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
       document.getElementById('member-tbody').innerHTML = filtered.map((m,i) => `
         <tr>
           <td class="text-gray-400 text-xs">${i+1}</td>
@@ -158,7 +163,10 @@
               <div class="w-7 h-7 rounded-full overflow-hidden bg-sky-blue flex-shrink-0 flex items-center justify-center">
                 ${m.photoURL?`<img src="${m.photoURL}" class="w-full h-full object-cover">`:`<span class="text-xs font-black text-ocean-dark">${(m.name||'?').slice(0,2).toUpperCase()}</span>`}
               </div>
-              <span class="font-semibold text-ocean-dark">${m.name}</span>
+              <div class="min-w-0">
+                <span class="font-semibold text-ocean-dark">${m.name}</span>
+                ${m.bio ? `<p class="text-xs text-gray-400 truncate" style="max-width:180px" title="${esc(m.bio)}">💬 ${esc(m.bio)}</p>` : ''}
+              </div>
             </div>
           </td>
           <td><code class="font-mono font-bold text-ocean-mid">${m.accessCode||'—'}</code></td>
@@ -190,6 +198,7 @@
       document.getElementById('edit-gender').value = m.gender || '';
       document.getElementById('edit-status').value = m.status || 'newbie';
       document.getElementById('edit-sat').value    = m.satType || 'spotlight';
+      document.getElementById('edit-bio').value    = m.bio || '';
       document.getElementById('edit-code').value   = m.accessCode || '';
       document.getElementById('edit-modal').classList.remove('hidden');
     };
@@ -208,6 +217,7 @@
           gender:      document.getElementById('edit-gender').value,
           status:      document.getElementById('edit-status').value,
           satType:     document.getElementById('edit-sat').value,
+          bio:         document.getElementById('edit-bio').value.trim(),
         });
         const idx = allMembers.findIndex(m=>m.id===editingId);
         if (idx>=0) {
