@@ -71,6 +71,51 @@
 
   </div>
 
+  <!-- ── Complete Your Profile Modal (blocks until required fields are filled) ── -->
+  <div id="profile-complete-modal" class="hidden fixed inset-0 z-[300] flex flex-col" style="background:rgba(3,4,94,0.96)">
+    <div class="bg-ocean-gradient pt-10 pb-5 px-5 text-center flex-shrink-0">
+      <div class="text-4xl mb-2">📝</div>
+      <h2 class="text-white font-black text-xl">Hoàn Thiện Hồ Sơ</h2>
+      <p class="text-sky-blue text-sm mt-1">Bổ sung vài thông tin còn thiếu trước khi tiếp tục nhé!</p>
+    </div>
+    <div class="flex-1 overflow-y-auto px-4 py-4">
+      <div id="pc-gender-group" class="mb-5 hidden">
+        <label class="text-white font-bold text-sm mb-2 block">Giới tính <span class="text-coral-red">*</span></label>
+        <div class="grid grid-cols-2 gap-3">
+          <div class="status-card" data-value="male" onclick="pcSelectGender(this)">
+            <div class="text-2xl mb-1">👦</div>
+            <div class="font-bold text-ocean-dark">Nam</div>
+          </div>
+          <div class="status-card" data-value="female" onclick="pcSelectGender(this)">
+            <div class="text-2xl mb-1">👧</div>
+            <div class="font-bold text-ocean-dark">Nữ</div>
+          </div>
+        </div>
+      </div>
+      <div id="pc-dob-group" class="mb-5 hidden">
+        <label class="text-white font-bold text-sm mb-2 block">Ngày sinh <span class="text-coral-red">*</span></label>
+        <input id="pc-dob" type="date" class="input-field">
+      </div>
+      <div id="pc-major-group" class="mb-5 hidden">
+        <label class="text-white font-bold text-sm mb-2 block">Ngành học / Chuyên ngành <span class="text-coral-red">*</span></label>
+        <input id="pc-major" type="text" class="input-field" placeholder="VD: Marketing, CNTT...">
+      </div>
+      <div id="pc-school-group" class="mb-5 hidden">
+        <label class="text-white font-bold text-sm mb-2 block">Trường / Khoa <span class="text-coral-red">*</span></label>
+        <input id="pc-school" type="text" class="input-field" placeholder="VD: UEF, UIT...">
+      </div>
+      <div id="pc-bio-group" class="mb-5 hidden">
+        <label class="text-white font-bold text-sm mb-1 block">Fun Fact / Bio của bạn <span class="text-coral-red">*</span></label>
+        <p class="text-sky-blue text-xs mb-2">Tối thiểu 10 ký tự</p>
+        <textarea id="pc-bio" rows="3" maxlength="200" class="input-field resize-none" style="height:auto" placeholder="VD: Mình thích ăn bánh tráng trộn..."></textarea>
+      </div>
+    </div>
+    <div class="flex-shrink-0 px-4 pb-8 pt-3 bg-ocean-deep border-t border-sky-blue/20">
+      <button id="pc-submit-btn" class="btn-primary w-full" disabled>✅ Lưu & Tiếp Tục</button>
+      <p class="text-center text-xs text-sky-blue/60 mt-2">Điền đầy đủ thông tin để tiếp tục sử dụng ứng dụng</p>
+    </div>
+  </div>
+
   <!-- ── First-login T/F Survey Modal ─────────────────────────────────── -->
   <div id="survey-modal" class="hidden fixed inset-0 z-[300] flex flex-col" style="background:rgba(3,4,94,0.96)">
     <!-- Header -->
@@ -149,6 +194,76 @@
 
     window.handleMute = function() { toggleMute(); syncMuteBtn('mute-btn'); };
     syncMuteBtn('mute-btn');
+
+    // ── Complete Your Profile gate ──────────────────────────────────────────────
+    // Covers members who registered before a field existed (e.g. gender) or who
+    // left optional fields (DOB/major/school) blank at signup — runs for every
+    // member, new or existing, whenever any of these 5 fields is still empty.
+    let _pcSelectedGender = '';
+
+    window.pcSelectGender = function(el) {
+      document.querySelectorAll('#pc-gender-group .status-card').forEach(c => c.classList.remove('selected'));
+      el.classList.add('selected');
+      _pcSelectedGender = el.dataset.value;
+      pcUpdateSubmitState();
+    };
+
+    let _pcMissing = null;
+    function pcUpdateSubmitState() {
+      const m = _pcMissing;
+      if (!m) return;
+      const ok =
+        (!m.gender      || _pcSelectedGender) &&
+        (!m.dateOfBirth || document.getElementById('pc-dob').value) &&
+        (!m.major       || document.getElementById('pc-major').value.trim()) &&
+        (!m.school      || document.getElementById('pc-school').value.trim()) &&
+        (!m.bio         || document.getElementById('pc-bio').value.trim().length >= 10);
+      document.getElementById('pc-submit-btn').disabled = !ok;
+    }
+
+    function checkAndShowProfileComplete(member) {
+      const missing = {
+        gender:      !member.gender,
+        dateOfBirth: !member.dateOfBirth,
+        major:       !member.major,
+        school:      !member.school,
+        bio:         !member.bio || member.bio.trim().length < 10,
+      };
+      if (!Object.values(missing).some(Boolean)) return Promise.resolve();
+
+      _pcMissing = missing;
+      _pcSelectedGender = '';
+      const groupIdForField = { gender:'pc-gender-group', dateOfBirth:'pc-dob-group', major:'pc-major-group', school:'pc-school-group', bio:'pc-bio-group' };
+      Object.entries(groupIdForField).forEach(([field, groupId]) => {
+        document.getElementById(groupId).classList.toggle('hidden', !missing[field]);
+      });
+      ['pc-dob','pc-major','pc-school','pc-bio'].forEach(id => {
+        document.getElementById(id).oninput = pcUpdateSubmitState;
+      });
+      pcUpdateSubmitState();
+
+      return new Promise(resolve => {
+        document.getElementById('profile-complete-modal').classList.remove('hidden');
+        document.getElementById('pc-submit-btn').onclick = async function() {
+          const updates = {};
+          if (missing.gender)      updates.gender      = _pcSelectedGender;
+          if (missing.dateOfBirth) updates.dateOfBirth  = document.getElementById('pc-dob').value;
+          if (missing.major)       updates.major        = document.getElementById('pc-major').value.trim();
+          if (missing.school)      updates.school       = document.getElementById('pc-school').value.trim();
+          if (missing.bio)         updates.bio          = document.getElementById('pc-bio').value.trim();
+          this.disabled = true;
+          try {
+            await updateDoc(doc(db, 'members', session.memberId), updates);
+            Object.assign(member, updates);
+            document.getElementById('profile-complete-modal').classList.add('hidden');
+            resolve();
+          } catch {
+            showToast('Lỗi lưu thông tin. Thử lại nhé!', 'error');
+            this.disabled = false;
+          }
+        };
+      });
+    }
 
     // ── First-login Jellyfish Species Picker ────────────────────────────────────
     function renderSpeciesGrid() {
@@ -308,6 +423,9 @@
         const memberDoc = await getDoc(doc(db, 'members', session.memberId));
         if (!memberDoc.exists()) { clearSession(); window.location.href = 'index.html'; return; }
         const member = memberDoc.data();
+
+        // Force completion of any missing core profile fields (blocks until resolved)
+        await checkAndShowProfileComplete(member);
 
         // First-login jellyfish species choice (blocks until resolved)
         member.jellySpecies = await checkAndShowSpecies(member);
