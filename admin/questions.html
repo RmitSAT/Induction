@@ -86,7 +86,7 @@
     import { onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
     import { db } from '../js/firebase-config.js';
     import {
-      collection, getDocs, doc, setDoc, deleteDoc, addDoc, updateDoc, writeBatch
+      collection, getDocs, getDoc, doc, setDoc, deleteDoc, addDoc, updateDoc, writeBatch, deleteField
     } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
     onAuthStateChanged(auth, u => { if (!u) window.location.href = 'index.html'; });
@@ -459,9 +459,12 @@
     window.resetAllQuiz = async function() {
       const confirmed = confirm(
         'Reset the quiz for ALL members?\n\n' +
-        '• Quiz badge (B03) removed for everyone\n' +
-        '• Scores, attempt counts, speed-run achievements cleared\n' +
-        '• Points earned from quiz will be subtracted\n\n' +
+        '• Quiz badge (B03) removed for everyone — and Full Explorer (B06) too,\n' +
+        '  for anyone who only had it because B03 was unlocked\n' +
+        '• Scores, attempt counts, in-progress quiz state, and speed-run\n' +
+        '  achievements cleared\n' +
+        '• Exactly the points the quiz (and any dependent B06 bonus) awarded\n' +
+        '  will be subtracted — quiz QUESTIONS and their answers are untouched\n\n' +
         'Members can retake and earn points again.\n\nThis CANNOT be undone.'
       );
       if (!confirmed) return;
@@ -471,24 +474,35 @@
         const allSnap = await getDocs(collection(db, 'members'));
         const members = allSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
+        // Fetch each member's B03/B06 badge state up front so we deduct the
+        // ACTUAL points the quiz awarded (not a guessed flat amount), and so
+        // B06 (which requires B03 among others) gets revoked in step with it.
+        const badgeSnaps = await Promise.all(members.map(m => Promise.all([
+          getDoc(doc(db,'members',m.id,'badges','B03')),
+          getDoc(doc(db,'members',m.id,'badges','B06'))
+        ])));
+
         let batch = writeBatch(db);
         let ops   = 0;
         const BATCH_LIMIT = 490; // Firestore max is 500 ops/batch
 
-        for (const m of members) {
-          const memberRef = doc(db, 'members', m.id);
-          const b03Ref    = doc(db, 'members', m.id, 'badges', 'B03');
+        for (let i = 0; i < members.length; i++) {
+          const m = members[i];
+          const [b03Snap, b06Snap] = badgeSnaps[i];
+          const hadB03 = b03Snap.exists() && b03Snap.data().unlocked;
+          const hadB06 = b06Snap.exists() && b06Snap.data().unlocked;
 
-          // Subtract points that were awarded for passing the quiz
           let pointsToRemove = 0;
-          if (m.quizPassed)                    pointsToRemove += 20;
-          if (m.achievements?.speedRunner)      pointsToRemove += 10;
+          if (hadB03)                       pointsToRemove += (m.quizLive?.totalPoints || 0);
+          if (m.achievements?.speedRunner)  pointsToRemove += 10;
+          if (hadB06)                       pointsToRemove += (b06Snap.data().points || 50);
           const newPoints = Math.max(0, (m.points || 0) - pointsToRemove);
 
           const updates = {
             quizPassed:    false,
             quizScore:     0,
             quizAttempts:  0,
+            quizLive:      deleteField(),
             points:        newPoints
           };
           if (m.achievements?.speedRunner) {
@@ -496,9 +510,10 @@
             updates['achievements.speedRunTime'] = null;
           }
 
-          batch.update(memberRef, updates);
-          batch.delete(b03Ref);
-          ops += 2;
+          batch.update(doc(db, 'members', m.id), updates);
+          ops++;
+          if (hadB03) { batch.delete(doc(db, 'members', m.id, 'badges', 'B03')); ops++; }
+          if (hadB06) { batch.delete(doc(db, 'members', m.id, 'badges', 'B06')); ops++; }
 
           if (ops >= BATCH_LIMIT) {
             await batch.commit();

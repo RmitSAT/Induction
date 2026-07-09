@@ -12,6 +12,24 @@
     body { background: #03045E; color: white; }
     .screen { display: none; }
     .screen.active { display: flex; }
+
+    /* ── Lucky Draw slot-machine reels ── */
+    .ld-reel {
+      background: linear-gradient(135deg,#0077B6,#023E8A);
+      border: 3px solid #F59E0B;
+      border-radius: 20px;
+      padding: 20px 26px;
+      min-width: 220px;
+      box-shadow: 0 6px 30px rgba(245,158,11,0.25);
+      text-align: center;
+    }
+    .ld-reel-num  { color: #FBBF24; font-weight: 900; font-size: 13px; letter-spacing: .1em; text-transform: uppercase; margin-bottom: 6px; }
+    .ld-reel-name { color: #fff; font-weight: 900; font-size: 24px; min-height: 32px; }
+    .ld-reel-code { color: #ADE8F4; font-weight: 800; font-size: 15px; font-family: 'Courier New', monospace; letter-spacing: .1em; margin-top: 4px; }
+    .ld-reel.spinning { animation: ld-shake 0.15s ease-in-out infinite; }
+    .ld-reel.locked   { border-color: #10B981; box-shadow: 0 0 0 4px rgba(16,185,129,0.35), 0 6px 30px rgba(16,185,129,0.3); animation: ld-pop 0.5s ease-out; }
+    @keyframes ld-shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-3px)} 75%{transform:translateX(3px)} }
+    @keyframes ld-pop { 0%{transform:scale(1.15)} 100%{transform:scale(1)} }
   </style>
 </head>
 <body class="font-nunito min-h-screen">
@@ -23,6 +41,7 @@
     <button onclick="showScreen('teams')"       class="bg-sky-500 text-white px-3 py-1 rounded text-sm font-bold">🚢 Teams</button>
     <button onclick="showScreen('missions')"    class="bg-sky-500 text-white px-3 py-1 rounded text-sm font-bold">📋 Missions</button>
     <button onclick="showScreen('quizfinal')"   class="bg-sky-500 text-white px-3 py-1 rounded text-sm font-bold">📝 Quiz Ranking</button>
+    <button onclick="showScreen('luckydraw')"   class="bg-sky-500 text-white px-3 py-1 rounded text-sm font-bold">🎰 Lucky Draw</button>
     <button onclick="showScreen('awards')"      class="bg-sky-500 text-white px-3 py-1 rounded text-sm font-bold">🎉 Awards</button>
     <button onclick="toggleControls()" class="bg-gray-600 text-white px-3 py-1 rounded text-sm font-bold ml-auto">Hide Controls</button>
     <a href="dashboard.html" class="bg-red-600 text-white px-3 py-1 rounded text-sm font-bold">Exit</a>
@@ -74,6 +93,17 @@
     </div>
   </div>
 
+  <!-- Screen: Lucky Draw -->
+  <div id="screen-luckydraw" class="screen min-h-screen flex-col items-center justify-center pt-16">
+    <div class="projector-screen">
+      <div class="text-6xl mb-4">🎰</div>
+      <h1 class="text-5xl font-black mb-2">LUCKY DRAW</h1>
+      <p id="ld-sub" class="text-sky-300 text-xl mb-8">&nbsp;</p>
+      <div id="ld-reels" class="w-full max-w-4xl flex flex-wrap gap-5 justify-center"></div>
+      <p id="ld-empty" class="text-sky-300 text-xl hidden">Chưa có vé nào để quay số. Kiểm tra cài đặt Lucky Draw trong Admin.</p>
+    </div>
+  </div>
+
   <!-- Screen: Awards -->
   <div id="screen-awards" class="screen min-h-screen flex-col items-center justify-center bg-ocean-gradient pt-16">
     <div class="projector-screen">
@@ -88,7 +118,7 @@
     import { auth } from '../js/firebase-config.js';
     import { onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
     import { db } from '../js/firebase-config.js';
-    import { collection, getDocs, doc, getDoc } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+    import { collection, getDocs, doc, getDoc, setDoc } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
     onAuthStateChanged(auth, user => { if (!user) window.location.href = 'index.html'; });
     window.doSignOut = async () => { await signOut(auth); window.location.href = 'index.html'; };
@@ -106,6 +136,7 @@
       if (name === 'teams')       await loadTeams();
       if (name === 'missions')    await loadMissions();
       if (name === 'quizfinal')   await loadQuizFinal();
+      if (name === 'luckydraw')  await loadLuckyDraw();
     };
 
     async function loadLeaderboard() {
@@ -157,6 +188,104 @@
           <span class="text-sky-300 text-base">${m.quizScore||0}/${m.quizLive?.totalQuestions||'?'} đúng</span>
           <span class="text-sky-300">${m.quizLive?.totalPoints||0} pts</span>
         </div>`).join('') || '<p class="text-sky-300 text-center">Chưa có dữ liệu quiz.</p>';
+    }
+    // The refresh button's inline onclick="loadQuizFinal()" runs in global scope,
+    // but module-level function declarations aren't global — must expose explicitly.
+    window.loadQuizFinal = loadQuizFinal;
+
+    // ── Lucky Draw ──────────────────────────────────────────────────────────
+    function pickUniqueRandom(pool, count) {
+      const copy = [...pool];
+      const picked = [];
+      const n = Math.min(count, copy.length);
+      for (let i = 0; i < n; i++) {
+        const idx = Math.floor(Math.random() * copy.length);
+        picked.push(copy.splice(idx, 1)[0]);
+      }
+      return picked;
+    }
+
+    async function loadLuckyDraw() {
+      const reelsEl = document.getElementById('ld-reels');
+      const emptyEl = document.getElementById('ld-empty');
+      const subEl   = document.getElementById('ld-sub');
+      reelsEl.innerHTML = '';
+      emptyEl.classList.add('hidden');
+
+      const [cfgSnap, membersSnap, luckySnap] = await Promise.all([
+        getDoc(doc(db,'config','settings')),
+        getDocs(collection(db,'members')),
+        getDoc(doc(db,'config','luckyDraw'))
+      ]);
+
+      const cfg = cfgSnap.exists() ? cfgSnap.data() : {};
+      const ticketCount = cfg.luckyDrawTicketCount || 20;
+      const winnerCount = cfg.luckyDrawWinnerCount || 1;
+
+      const ticketHolders = membersSnap.docs
+        .map(d => ({ id:d.id, ...d.data() }))
+        .sort((a,b) => (a.createdAt?.seconds||0) - (b.createdAt?.seconds||0))
+        .slice(0, ticketCount);
+
+      if (!ticketHolders.length) {
+        emptyEl.classList.remove('hidden');
+        subEl.textContent = '';
+        return;
+      }
+
+      subEl.textContent = `${ticketHolders.length} vé tham gia · ${winnerCount} người thắng`;
+
+      // Winners are drawn ONCE and persisted — re-entering this screen replays
+      // the same reveal animation ending on the same result, it never
+      // re-randomizes (unless settings changed the winner count, or an admin
+      // explicitly resets via the Lucky Draw admin page).
+      let winners = (luckySnap.exists() ? luckySnap.data().winners : null) || [];
+      if (winners.length !== Math.min(winnerCount, ticketHolders.length)) winners = [];
+
+      if (!winners.length) {
+        const picked = pickUniqueRandom(ticketHolders, winnerCount);
+        winners = picked.map(m => ({ id:m.id, name:m.name, accessCode:m.accessCode, satType:m.satType||'' }));
+        try {
+          await setDoc(doc(db,'config','luckyDraw'), { winners, drawnAt: new Date().toISOString() });
+        } catch {}
+      }
+
+      playSlotMachine(ticketHolders, winners);
+    }
+
+    function playSlotMachine(pool, winners) {
+      const reelsEl = document.getElementById('ld-reels');
+      reelsEl.innerHTML = winners.map((_, i) => `
+        <div class="ld-reel spinning" id="ld-reel-${i}">
+          <div class="ld-reel-num">Giải ${i+1}</div>
+          <div class="ld-reel-name" id="ld-reel-name-${i}">…</div>
+          <div class="ld-reel-code" id="ld-reel-code-${i}">&nbsp;</div>
+        </div>`).join('');
+
+      winners.forEach((w, i) => {
+        const nameEl = document.getElementById(`ld-reel-name-${i}`);
+        const codeEl = document.getElementById(`ld-reel-code-${i}`);
+        const reelEl = document.getElementById(`ld-reel-${i}`);
+        let delay = 60;
+        let timer = null;
+        const flash = () => {
+          const r = pool[Math.floor(Math.random()*pool.length)];
+          nameEl.textContent = r.name;
+          codeEl.textContent = r.accessCode;
+          delay = Math.min(delay * 1.06, 220);
+          timer = setTimeout(flash, delay);
+        };
+        flash();
+
+        // Stagger each reel's lock-in for a cascading reveal
+        setTimeout(() => {
+          clearTimeout(timer);
+          nameEl.textContent = w.name;
+          codeEl.textContent = w.accessCode;
+          reelEl.classList.remove('spinning');
+          reelEl.classList.add('locked');
+        }, 1800 + i * 900);
+      });
     }
 
     loadLeaderboard();

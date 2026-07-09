@@ -25,6 +25,11 @@ service cloud.firestore {
       allow read: if true;
       allow write: if isAdmin();
     }
+    // Lucky Draw settings/results (ticket count, winner count, drawn winners)
+    match /config/luckyDraw {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
 
     // ── Members ────────────────────────────────────────────────────────────
     match /members/{memberId} {

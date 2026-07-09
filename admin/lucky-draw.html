@@ -7,7 +7,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="../css/style.css">
-  <script>tailwind.config={theme:{extend:{colors:{'ocean-deep':'#03045E','ocean-dark':'#023E8A','ocean-mid':'#0077B6','ocean-teal':'#0096C7','sky-blue':'#00B4D8','foam-blue':'#ADE8F4','mist-blue':'#CAF0F8','coral-red':'#D62828'},fontFamily:{nunito:['Nunito','sans-serif']}}}}}</script>
+  <script>tailwind.config={theme:{extend:{colors:{'ocean-deep':'#03045E','ocean-dark':'#023E8A','ocean-mid':'#0077B6','ocean-teal':'#0096C7','sky-blue':'#00B4D8','foam-blue':'#ADE8F4','mist-blue':'#CAF0F8','coral-red':'#D62828'},fontFamily:{nunito:['Nunito','sans-serif']}}}}</script>
 </head>
 <body class="font-nunito bg-gray-50 min-h-screen">
   <div id="toast-container"></div>
@@ -30,31 +30,27 @@
           <label class="label">Số vé (top N đăng ký sớm nhất)</label>
           <input id="ticket-count" type="number" min="1" max="500" value="20" class="input-field">
         </div>
+        <div class="flex-1" style="min-width:180px">
+          <label class="label">Số người trúng thưởng</label>
+          <input id="winner-count" type="number" min="1" max="50" value="1" class="input-field">
+        </div>
         <button onclick="saveSettings()" class="btn-primary" style="width:auto;padding:10px 24px">💾 Lưu</button>
       </div>
-      <p class="text-xs text-gray-400 mt-2">N thành viên đăng ký sớm nhất sẽ được vào danh sách quay số.</p>
+      <p class="text-xs text-gray-400 mt-2">N thành viên đăng ký sớm nhất sẽ được vào danh sách quay số. Việc quay số thực tế (ngẫu nhiên + hiệu ứng quay) diễn ra tại màn hình Projector → Lucky Draw.</p>
     </div>
 
-    <!-- Draw + Winner -->
+    <!-- Current result (read-only — the actual draw happens on the Projector screen) -->
     <div class="card p-6 mb-5 text-center">
-      <h2 class="font-black text-ocean-dark mb-4">🎲 Quay Số</h2>
-      <button id="draw-btn" onclick="drawWinner()"
-        class="btn-primary mb-5 text-lg font-black"
-        style="width:auto;padding:14px 36px;background:linear-gradient(135deg,#D97706,#F59E0B,#FBBF24);border:none;box-shadow:0 4px 20px rgba(217,119,6,0.4);color:#1A1A1A">
-        🎲 Quay Số Ngẫu Nhiên
-      </button>
-
+      <h2 class="font-black text-ocean-dark mb-4">🏆 Kết Quả Hiện Tại</h2>
       <div id="winner-wrap" class="hidden rounded-2xl p-6"
         style="background:linear-gradient(135deg,#03045E,#0077B6);border:2px solid #F59E0B">
         <div class="text-5xl mb-3">🏆</div>
         <p class="text-foam-blue font-bold text-sm mb-1 tracking-wide uppercase">Người Trúng Thưởng</p>
-        <h3 id="win-name" class="text-white font-black text-2xl mb-1"></h3>
-        <p id="win-code" class="text-sky-blue font-black text-xl tracking-widest mb-2 font-mono"></p>
-        <p id="win-sat"  class="text-foam-blue text-sm mb-2"></p>
+        <div id="winners-list" class="space-y-1 mb-2"></div>
         <p id="win-time" class="text-foam-blue/60 text-xs"></p>
-        <button onclick="clearWinner()" class="mt-4 text-xs text-sky-blue/50 hover:text-sky-blue transition-colors">↩ Xoá kết quả</button>
       </div>
-      <p id="no-winner-msg" class="text-gray-400 text-sm hidden">Chưa có kết quả quay số.</p>
+      <p id="no-winner-msg" class="text-gray-400 text-sm mb-4">Chưa có kết quả quay số. Mở Projector → 🎰 Lucky Draw để quay.</p>
+      <button onclick="clearWinner()" class="btn-secondary" style="width:auto;padding:8px 20px;margin:0 auto">↩ Reset — cho phép quay lại từ đầu</button>
     </div>
 
     <!-- Ticket holders -->
@@ -81,6 +77,7 @@
 
     let allSortedMembers = [];
     let ticketCount      = 20;
+    let winnerCount      = 1;
     let ticketHolders    = [];
 
     onAuthStateChanged(auth, u => { if (!u) window.location.href = 'index.html'; else load(); });
@@ -91,8 +88,11 @@
         getDocs(collection(db,'members'))
       ]);
 
-      ticketCount = cfgSnap.exists() ? (cfgSnap.data().luckyDrawTicketCount || 20) : 20;
+      const cfg = cfgSnap.exists() ? cfgSnap.data() : {};
+      ticketCount = cfg.luckyDrawTicketCount || 20;
+      winnerCount = cfg.luckyDrawWinnerCount || 1;
       document.getElementById('ticket-count').value = ticketCount;
+      document.getElementById('winner-count').value = winnerCount;
 
       allSortedMembers = membersSnap.docs
         .map(d => ({id:d.id,...d.data()}))
@@ -101,7 +101,7 @@
       renderTicketList();
 
       const winSnap = await getDoc(doc(db,'config','luckyDraw'));
-      if (winSnap.exists() && winSnap.data().winnerId) {
+      if (winSnap.exists() && (winSnap.data().winners||[]).length) {
         showWinner(winSnap.data());
       } else {
         document.getElementById('no-winner-msg').classList.remove('hidden');
@@ -132,9 +132,13 @@
     }
 
     function showWinner(data) {
-      document.getElementById('win-name').textContent = data.winnerName || '—';
-      document.getElementById('win-code').textContent = data.winnerCode || '';
-      document.getElementById('win-sat').textContent  = SAT_LABELS[data.winnerSat] || data.winnerSat || '';
+      const winners = data.winners || [];
+      document.getElementById('winners-list').innerHTML = winners.map(w => `
+        <div>
+          <span class="text-white font-black text-xl">${w.name}</span>
+          <span class="text-sky-blue font-black text-base tracking-widest font-mono ml-2">${w.accessCode}</span>
+          <span class="text-foam-blue text-xs ml-1">${SAT_LABELS[w.satType]||w.satType||''}</span>
+        </div>`).join('');
       document.getElementById('win-time').textContent = data.drawnAt
         ? 'Quay lúc: ' + new Date(data.drawnAt).toLocaleString('vi-VN') : '';
       document.getElementById('winner-wrap').classList.remove('hidden');
@@ -142,65 +146,25 @@
     }
 
     window.saveSettings = async function() {
-      const n = parseInt(document.getElementById('ticket-count').value, 10);
-      if (!n || n < 1) { showToast('Số vé không hợp lệ!','error'); return; }
+      const n  = parseInt(document.getElementById('ticket-count').value, 10);
+      const wc = parseInt(document.getElementById('winner-count').value, 10);
+      if (!n || n < 1)  { showToast('Số vé không hợp lệ!','error'); return; }
+      if (!wc || wc < 1) { showToast('Số người trúng thưởng không hợp lệ!','error'); return; }
       const btn = document.querySelector('[onclick="saveSettings()"]');
       btn.disabled = true; btn.textContent = '⏳ Đang lưu...';
       try {
-        await setDoc(doc(db,'config','settings'), { luckyDrawTicketCount: n }, { merge:true });
-        ticketCount = n;
+        await setDoc(doc(db,'config','settings'), { luckyDrawTicketCount: n, luckyDrawWinnerCount: wc }, { merge:true });
+        ticketCount = n; winnerCount = wc;
         renderTicketList();
         showToast('Đã lưu! Danh sách vé đã cập nhật.','success');
       } catch(e) { showToast('Lỗi: '+e.message,'error'); }
       btn.disabled = false; btn.textContent = '💾 Lưu';
     };
 
-    window.drawWinner = async function() {
-      if (!ticketHolders.length) { showToast('Chưa có vé nào!','error'); return; }
-      const btn = document.getElementById('draw-btn');
-      btn.disabled = true; btn.textContent = '⏳ Đang quay...';
-
-      document.getElementById('winner-wrap').classList.remove('hidden');
-      document.getElementById('no-winner-msg').classList.add('hidden');
-
-      // Animated flash that gradually slows down
-      let delay = 80;
-      let drawing = true;
-      const tick = () => {
-        if (!drawing) return;
-        const r = ticketHolders[Math.floor(Math.random()*ticketHolders.length)];
-        document.getElementById('win-name').textContent = r.name;
-        document.getElementById('win-code').textContent = r.accessCode;
-        document.getElementById('win-sat').textContent  = '';
-        delay = Math.min(delay * 1.08, 480);
-        setTimeout(tick, delay);
-      };
-      tick();
-
-      await new Promise(r => setTimeout(r, 3000));
-      drawing = false;
-
-      const winner = ticketHolders[Math.floor(Math.random()*ticketHolders.length)];
-      const result = {
-        winnerId:   winner.id,
-        winnerName: winner.name,
-        winnerCode: winner.accessCode,
-        winnerSat:  winner.satType || '',
-        drawnAt:    new Date().toISOString()
-      };
-      try {
-        await setDoc(doc(db,'config','luckyDraw'), result);
-        showWinner(result);
-        showToast(`🏆 ${winner.name} trúng thưởng!`, 'success');
-      } catch(e) { showToast('Lỗi lưu kết quả: '+e.message,'error'); }
-      btn.disabled = false; btn.textContent = '🎲 Quay Số Ngẫu Nhiên';
-    };
-
     window.clearWinner = async function() {
-      if (!confirm('Xóa kết quả quay số hiện tại?')) return;
+      if (!confirm('Xóa kết quả quay số hiện tại? Lần sau mở Projector sẽ quay số mới.')) return;
       try {
-        await setDoc(doc(db,'config','luckyDraw'),
-          {winnerId:null,winnerName:null,winnerCode:null,winnerSat:null,drawnAt:null});
+        await setDoc(doc(db,'config','luckyDraw'), { winners: [], drawnAt: null });
         document.getElementById('winner-wrap').classList.add('hidden');
         document.getElementById('no-winner-msg').classList.remove('hidden');
         showToast('Đã xóa kết quả.','info');

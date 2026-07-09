@@ -57,6 +57,28 @@
         <tbody id="member-tbody"></tbody>
       </table>
     </div>
+
+    <!-- Danger Zone -->
+    <div class="mt-6 border-2 border-red-200 bg-red-50 rounded-2xl p-4">
+      <div class="flex items-start gap-3">
+        <span class="text-2xl mt-0.5">☢️</span>
+        <div class="flex-1">
+          <h3 class="font-black text-coral-red text-sm mb-1">Erase ALL Member Data</h3>
+          <p class="text-xs text-gray-600 mb-1">
+            Deletes every member — their profile, badges, Find-Fellow scan history, and Sonar Radar location —
+            so you can retest registration/login from a clean slate. Quiz questions and answers (Admin → Questions) are untouched.
+          </p>
+          <p class="text-xs text-gray-500 mb-1">
+            To also clear quiz result data (scores/attempts/B03/B06) without touching the questions themselves, use
+            <a href="questions.html" class="text-ocean-mid font-bold hover:underline">Admin → Questions → Reset Quiz for All Members</a>.
+          </p>
+          <p class="text-xs text-red-500 font-bold mb-3">This action cannot be undone.</p>
+          <button onclick="eraseAllMembers()" class="btn-danger btn-sm" style="width:auto;padding:8px 18px">
+            ☢️ Erase ALL Member Data
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- Edit Modal -->
@@ -97,7 +119,7 @@
     import { auth } from '../js/firebase-config.js';
     import { onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
     import { db } from '../js/firebase-config.js';
-    import { collection, getDocs, getDoc, doc, updateDoc, deleteDoc, addDoc, setDoc, serverTimestamp, writeBatch } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+    import { collection, getDocs, getDoc, doc, updateDoc, addDoc, setDoc, serverTimestamp, writeBatch } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
     onAuthStateChanged(auth, user => { if (!user) window.location.href = 'index.html'; });
     window.doSignOut = async () => { await signOut(auth); window.location.href = 'index.html'; };
@@ -145,6 +167,7 @@
             <div class="flex gap-1">
               <button onclick="openEdit('${m.id}')" class="btn-primary btn-sm" style="width:auto;padding:4px 10px;font-size:0.75rem">Edit</button>
               <button onclick="viewQR('${m.accessCode}')" class="btn-secondary btn-sm" style="width:auto;padding:4px 10px;font-size:0.75rem">QR</button>
+              <button onclick="deleteMemberRow('${m.id}')" class="btn-danger btn-sm" style="width:auto;padding:4px 10px;font-size:0.75rem">🗑</button>
             </div>
           </td>
         </tr>`).join('');
@@ -189,15 +212,74 @@
       document.getElementById('page-loader').classList.add('hidden');
     };
 
+    // Deleting members/{id} alone leaves their badges/fellowScans subcollections
+    // and memberLocations/{id} (Sonar Radar) doc orphaned — Firestore never
+    // cascade-deletes subcollections on its own. Queues all of it into `batch`
+    // (caller commits) and returns how many ops were added, for batch-limit tracking.
+    async function queueCascadeDelete(batch, id) {
+      let ops = 0;
+      const [badgesSnap, scansSnap] = await Promise.all([
+        getDocs(collection(db,'members',id,'badges')),
+        getDocs(collection(db,'members',id,'fellowScans'))
+      ]);
+      badgesSnap.forEach(b => { batch.delete(doc(db,'members',id,'badges',b.id)); ops++; });
+      scansSnap.forEach(s => { batch.delete(doc(db,'members',id,'fellowScans',s.id)); ops++; });
+      batch.delete(doc(db,'memberLocations',id)); ops++;
+      batch.delete(doc(db,'members',id)); ops++;
+      return ops;
+    }
+
     window.deleteMember = async function() {
       if (!editingId || !confirm('Delete this member? This cannot be undone.')) return;
       document.getElementById('page-loader').classList.remove('hidden');
       try {
-        await deleteDoc(doc(db,'members',editingId));
+        const batch = writeBatch(db);
+        await queueCascadeDelete(batch, editingId);
+        await batch.commit();
         allMembers = allMembers.filter(m=>m.id!==editingId);
         showToast('Member deleted','success');
         closeModal(); renderTable();
-      } catch { showToast('Error deleting.','error'); }
+      } catch(e) { showToast('Error deleting: '+e.message,'error'); }
+      document.getElementById('page-loader').classList.add('hidden');
+    };
+
+    window.deleteMemberRow = async function(id) {
+      const m = allMembers.find(x=>x.id===id);
+      if (!m) return;
+      if (!confirm(`Delete "${m.name}" (${m.accessCode})?\n\nThis also removes their badges, Find-Fellow scan history, and Sonar Radar location.\n\nThis cannot be undone.`)) return;
+      document.getElementById('page-loader').classList.remove('hidden');
+      try {
+        const batch = writeBatch(db);
+        await queueCascadeDelete(batch, id);
+        await batch.commit();
+        allMembers = allMembers.filter(x=>x.id!==id);
+        showToast('Member deleted','success');
+        renderTable();
+      } catch(e) { showToast('Error deleting: '+e.message,'error'); }
+      document.getElementById('page-loader').classList.add('hidden');
+    };
+
+    window.eraseAllMembers = async function() {
+      const count = allMembers.length;
+      if (!count) { showToast('No members to erase.','info'); return; }
+      if (!confirm(`⚠️ ERASE ALL ${count} MEMBERS?\n\nThis deletes every member's profile, badges, Find-Fellow scan history, and Sonar Radar location. Everyone will need to register again.\n\nQuiz questions/answers are NOT affected.\n\nThis CANNOT be undone.`)) return;
+      const typed = prompt(`Type ERASE (all caps) to confirm wiping all ${count} member(s):`);
+      if (typed !== 'ERASE') { showToast('Cancelled — confirmation text did not match.','info'); return; }
+
+      document.getElementById('page-loader').classList.remove('hidden');
+      try {
+        let batch = writeBatch(db);
+        let ops   = 0;
+        const BATCH_LIMIT = 480; // leave headroom under Firestore's 500 ops/batch
+        for (const m of allMembers) {
+          ops += await queueCascadeDelete(batch, m.id);
+          if (ops >= BATCH_LIMIT) { await batch.commit(); batch = writeBatch(db); ops = 0; }
+        }
+        if (ops > 0) await batch.commit();
+        allMembers = [];
+        renderTable();
+        showToast(`Erased ${count} member(s).`,'success');
+      } catch(e) { showToast('Error erasing: '+e.message,'error'); }
       document.getElementById('page-loader').classList.add('hidden');
     };
 
