@@ -78,6 +78,25 @@
           </div>
         </div>
       </div>
+
+      <!-- Individual quiz reset -->
+      <div class="mt-4 border-2 border-amber-200 bg-amber-50 rounded-2xl p-4">
+        <h3 class="font-black text-ocean-dark text-sm mb-1">👤 Reset Quiz for One Member</h3>
+        <p class="text-xs text-gray-600 mb-3">Find a member and reset just their quiz result — everyone else keeps their progress.</p>
+        <div class="flex gap-2 mb-3">
+          <input id="quiz-member-search" type="text" placeholder="Search by name or access code..." class="input-field flex-1">
+          <button onclick="searchQuizMember()" class="btn-primary btn-sm" style="width:auto;display:inline-block">Search</button>
+        </div>
+        <div id="quiz-member-result" class="hidden">
+          <div class="border border-amber-300 bg-white rounded-xl p-3 mb-3">
+            <p class="font-bold text-ocean-dark text-sm" id="quiz-member-name">—</p>
+            <p class="text-xs text-gray-500" id="quiz-member-status">—</p>
+          </div>
+          <button onclick="resetOneMemberQuiz()" class="btn-danger btn-sm" style="width:auto;padding:8px 18px">
+            🔄 Reset Quiz for This Member
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -86,7 +105,7 @@
     import { onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
     import { db } from '../js/firebase-config.js';
     import {
-      collection, getDocs, getDoc, doc, setDoc, deleteDoc, addDoc, updateDoc, writeBatch, deleteField
+      collection, getDocs, getDoc, doc, setDoc, deleteDoc, addDoc, updateDoc, writeBatch, deleteField, query, where
     } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
     onAuthStateChanged(auth, u => { if (!u) window.location.href = 'index.html'; });
@@ -455,6 +474,34 @@
       loadQuiz();
     };
 
+    // ── Shared quiz-reset math (used by both the bulk and per-member resets) ──
+    // Computes exactly what changed for this member's quiz result — real
+    // points earned (not a guessed flat amount) and whether B03/B06 need to
+    // be revoked — without touching quiz QUESTIONS/answers at all.
+    function computeQuizReset(m, b03Snap, b06Snap) {
+      const hadB03 = b03Snap.exists() && b03Snap.data().unlocked;
+      const hadB06 = b06Snap.exists() && b06Snap.data().unlocked;
+
+      let pointsToRemove = 0;
+      if (hadB03)                      pointsToRemove += (m.quizLive?.totalPoints || 0);
+      if (m.achievements?.speedRunner) pointsToRemove += 10;
+      if (hadB06)                      pointsToRemove += (b06Snap.data().points || 50);
+      const newPoints = Math.max(0, (m.points || 0) - pointsToRemove);
+
+      const updates = {
+        quizPassed:   false,
+        quizScore:    0,
+        quizAttempts: 0,
+        quizLive:     deleteField(),
+        points:       newPoints
+      };
+      if (m.achievements?.speedRunner) {
+        updates['achievements.speedRunner']  = false;
+        updates['achievements.speedRunTime'] = null;
+      }
+      return { updates, hadB03, hadB06 };
+    }
+
     // ── Reset quiz for all members ─────────────────────────────────────────────
     window.resetAllQuiz = async function() {
       const confirmed = confirm(
@@ -489,26 +536,7 @@
         for (let i = 0; i < members.length; i++) {
           const m = members[i];
           const [b03Snap, b06Snap] = badgeSnaps[i];
-          const hadB03 = b03Snap.exists() && b03Snap.data().unlocked;
-          const hadB06 = b06Snap.exists() && b06Snap.data().unlocked;
-
-          let pointsToRemove = 0;
-          if (hadB03)                       pointsToRemove += (m.quizLive?.totalPoints || 0);
-          if (m.achievements?.speedRunner)  pointsToRemove += 10;
-          if (hadB06)                       pointsToRemove += (b06Snap.data().points || 50);
-          const newPoints = Math.max(0, (m.points || 0) - pointsToRemove);
-
-          const updates = {
-            quizPassed:    false,
-            quizScore:     0,
-            quizAttempts:  0,
-            quizLive:      deleteField(),
-            points:        newPoints
-          };
-          if (m.achievements?.speedRunner) {
-            updates['achievements.speedRunner']  = false;
-            updates['achievements.speedRunTime'] = null;
-          }
+          const { updates, hadB03, hadB06 } = computeQuizReset(m, b03Snap, b06Snap);
 
           batch.update(doc(db, 'members', m.id), updates);
           ops++;
@@ -525,6 +553,69 @@
         if (ops > 0) await batch.commit();
 
         showToast(`Quiz reset for ${members.length} member(s) ✅`, 'success');
+      } catch (e) {
+        showToast('Reset failed: ' + e.message, 'error');
+      }
+      showLoader(false);
+    };
+
+    // ── Reset quiz for one member ───────────────────────────────────────────────
+    let quizFoundMember = null;
+
+    window.searchQuizMember = async function() {
+      const q = document.getElementById('quiz-member-search').value.trim();
+      if (!q) return;
+      showLoader(true);
+      try {
+        const byCode = await getDocs(query(collection(db,'members'), where('accessCode','==',q.toUpperCase())));
+        let found = null;
+        if (!byCode.empty) {
+          found = { id: byCode.docs[0].id, ...byCode.docs[0].data() };
+        } else {
+          const all = await getDocs(collection(db,'members'));
+          const match = all.docs.find(d => d.data().name.toLowerCase().includes(q.toLowerCase()));
+          if (match) found = { id: match.id, ...match.data() };
+        }
+        if (!found) { showToast('Member not found', 'error'); showLoader(false); return; }
+        quizFoundMember = found;
+
+        const b03Snap = await getDoc(doc(db,'members',found.id,'badges','B03'));
+        const passed = b03Snap.exists() && b03Snap.data().unlocked;
+
+        document.getElementById('quiz-member-name').textContent = found.name;
+        document.getElementById('quiz-member-status').textContent = passed
+          ? `Quiz badge unlocked · Score ${found.quizScore||0} · ${found.quizAttempts||0} attempt(s) · ${found.quizLive?.totalPoints||0} pts earned`
+          : `Quiz badge not unlocked · ${found.quizAttempts||0} attempt(s) so far`;
+        document.getElementById('quiz-member-result').classList.remove('hidden');
+      } catch (e) {
+        showToast('Search failed: ' + e.message, 'error');
+      }
+      showLoader(false);
+    };
+
+    window.resetOneMemberQuiz = async function() {
+      if (!quizFoundMember) return;
+      if (!confirm(`Reset the quiz for ${quizFoundMember.name} only?\n\nTheir quiz badge (and Full Explorer, if it depended on it), score, attempts, and quiz points will be cleared. They can retake it themselves.\n\nThis CANNOT be undone.`)) return;
+
+      showLoader(true);
+      try {
+        const m = quizFoundMember;
+        const [b03Snap, b06Snap] = await Promise.all([
+          getDoc(doc(db,'members',m.id,'badges','B03')),
+          getDoc(doc(db,'members',m.id,'badges','B06'))
+        ]);
+        const { updates, hadB03, hadB06 } = computeQuizReset(m, b03Snap, b06Snap);
+
+        const batch = writeBatch(db);
+        batch.update(doc(db,'members',m.id), updates);
+        if (hadB03) batch.delete(doc(db,'members',m.id,'badges','B03'));
+        if (hadB06) batch.delete(doc(db,'members',m.id,'badges','B06'));
+        await batch.commit();
+
+        showToast(`Quiz reset for ${m.name} ✅`, 'success');
+        document.getElementById('quiz-member-result').classList.add('hidden');
+        document.getElementById('quiz-member-search').value = '';
+        quizFoundMember = null;
       } catch (e) {
         showToast('Reset failed: ' + e.message, 'error');
       }
